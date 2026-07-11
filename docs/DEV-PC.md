@@ -67,8 +67,13 @@ Props 必须声明类型；跨组件通信优先 props / emits，跨页面状态
 
 - `api/request.js` 创建 axios 实例：`baseURL` 为 `import.meta.env.VITE_API_BASE || '/server/api'`（`VITE_API_BASE` 来自环境变量，见第 11 节；默认相对路径，由 Vite 代理 / nginx 反代转发到后端），`withCredentials: false`。
 - 请求拦截器：自动附加 `Authorization: Bearer <token>`。
-- 响应拦截器：按 `{ code, data, message }` 解包；`code !== 0` 抛出含 `message` 的错误；HTTP 401 清 token 并跳登录。
-- 每个资源一个封装文件（如 `api/auth.js`），页面/store 只调用封装函数，不直接用 axios。
+- **响应拦截器是前端错误处理的唯一归一化出口（强约束）**。所有失败最终都被转成一个「带友好中文 `message` 的 `Error`」再 reject，页面/store 只负责展示 `err.message`，**永远不会看到 axios 默认的英文 `Request failed with status code xxx`**。具体规则：
+  - **成功且业务成功**（HTTP 2xx 且 `code === 0`）：返回 `body.data`，调用方直接拿数据。
+  - **业务失败**（HTTP 2xx 但 `code !== 0`）：`reject(toError(body.message, body.code))`。
+  - **HTTP 失败**（非 2xx，如 400/401/403/500）：后端此时**仍返回** `{ code, data:null, message }`，必须从 `err.response.data.message` 取中文文案；断网/超时无响应体时用通用兜底文案（如「网络异常，请检查网络后重试」）。**绝不允许**直接 `reject(err)` 把 axios 原始错误透出。
+  - 归一化用统一的 `toError(message, code, status)` 生成 `Error`，并把 `code`/`status` 挂到 error 上，供页面按需区分（一般只用 `message`）。
+  - HTTP 401：清 token 并跳登录（副作用），同时照常归一化错误。
+- 每个资源一个封装文件（如 `api/auth.js`），页面/store 只调用封装函数，不直接用 axios；封装层与 store **不得二次 try/catch 吞掉或重写 `message`**，让归一化后的错误一路冒泡到页面。
 
 ## 7. 样式与主题（自研，无 UI 框架）
 
@@ -90,8 +95,20 @@ Props 必须声明类型；跨组件通信优先 props / emits，跨页面状态
 
 ## 8. 错误处理与可靠性
 
-- 所有接口调用 `try/catch`，区分「业务错误（code≠0）」与「网络错误」；用统一提示组件展示 `message`，不裸 `alert`。
-- 表单提交：提交中禁用按钮（`loading` 态），失败回显错误，成功才跳转/刷新。
+**统一错误处理方案（前后端一致，务必遵守）**
+
+1. **后端**：任何失败都返回 `{ code, data:null, message }`，`message` 为可直接展示给用户的中文文案，并配对应 HTTP 状态码（400/401/403/404/500）。未知错误只返回 `5000 + 通用文案`，不泄漏堆栈（见 `DEV-SERVER.md` §10）。
+2. **拦截器归一化（唯一出口）**：`api/request.js` 的响应拦截器把「业务失败」和「HTTP 失败」都归一化成带中文 `message` 的 `Error`（见 §6）。这是页面能拿到友好文案的前提——**新增接口无需在页面重复处理原始错误**。
+3. **页面/store 消费**：接口调用统一 `try { ... } catch (e) { error.value = e.message || '兜底文案' }`，把 `e.message` 展示在页面内联错误区（如 `.xxx-error`）或统一提示组件，**不裸 `alert`、不展示 `e` 本身或状态码**。
+4. **自查清单（每次开发新接口/表单必过）**：
+   - [ ] 该请求失败时，页面显示的是**中文业务文案**，不是英文 `Request failed with status code xxx`。
+   - [ ] `catch` 里用的是 `e.message`，且有兜底文案。
+   - [ ] 未在封装层/store 二次 `catch` 吞掉错误或覆盖 `message`。
+   - [ ] 表单提交中禁用按钮（`loading` 态），失败回显、成功才跳转/刷新。
+   - [ ] 需要区分错误类型时用 `e.code`（业务码）/`e.status`（HTTP 码），而非解析文案。
+
+**其它可靠性约定**
+
 - 列表/详情加载展示骨架或加载态，空数据有空态提示。
 - 不在 `catch` 中吞异常；未知错误至少打印日志并提示用户。
 

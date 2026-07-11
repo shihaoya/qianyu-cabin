@@ -12,8 +12,8 @@
 - 第 3 节 组件代码组织（`<script setup>` 顺序）：完全相同。
 - 第 4 节 路由与守卫：完全相同（含 `meta.requiresAuth`、开发者专属 `meta.requiresAdmin` 守卫、按 `isAdmin` 显隐管理入口的约定）。
 - 第 5 节 状态管理（Pinia）：完全相同（token key 同为 `qianyu_token`）。
-- 第 6 节 API 客户端：`baseURL` 同为 `/server/api`、拦截器逻辑完全相同。
-- 第 8 节 错误处理与可靠性：完全相同（统一提示、loading 态、不吞异常）。
+- 第 6 节 API 客户端：`baseURL` 同为 `/server/api`；拦截器逻辑完全相同，含「响应拦截器是错误归一化唯一出口，把业务失败与 HTTP 失败都转成带中文 `message` 的 `Error`」。
+- 第 8 节 错误处理与可靠性：完全相同（统一错误处理方案：后端返回中文 `message` → 拦截器归一化 → 页面只展示 `e.message`；含自查清单、loading 态、不吞异常）。
 - 第 9 节 工具链：ESLint/Prettier/EditorConfig 规则与 PC 端同版本同配置。
 - 第 10 节 构建与代理：Vite 代理配置相同；产物在 `mobile/dist`（`DEPLOYMENT.md` 的 `/m`）。
 

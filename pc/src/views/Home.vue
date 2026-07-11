@@ -74,8 +74,16 @@ function onPlay(game) {
             desc="写句话给小屋，也能匿名留下"
             :to="{ name: 'guestbook' }"
           />
+        </div>
+      </section>
+
+      <section v-if="auth.isAdmin" class="block qy-rise" style="animation-delay:.16s">
+        <div class="block__head">
+          <h2 class="block__title">管理区</h2>
+          <p class="block__sub">只有你能看到的小屋后台</p>
+        </div>
+        <div class="interact">
           <EntryCard
-            v-if="auth.isAdmin"
             icon="users"
             title="用户管理"
             desc="查看与设置成员角色"
