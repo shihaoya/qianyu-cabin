@@ -32,6 +32,9 @@ export const useAuthStore = defineStore('auth', {
       this.token = ''
       this.user = null
       localStorage.removeItem('qianyu_token')
+      // 整页刷新回首页：彻底销毁当前页面组件实例与内存状态，
+      // 避免退出后受保护内容残留展示。
+      window.location.replace(import.meta.env.BASE_URL)
     },
   },
 })

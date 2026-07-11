@@ -1,5 +1,4 @@
 import axios from 'axios'
-import router from '../router/index.js'
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_BASE || '/server/api',
@@ -35,8 +34,10 @@ api.interceptors.response.use(
     const data = err.response?.data
 
     if (status === 401) {
+      // token 失效：清 token 后整页刷新回首页（与手动退出行为一致，
+      // 彻底销毁残留页面状态），首页有登录入口可重新登录。
       localStorage.removeItem('qianyu_token')
-      router.replace('/login')
+      window.location.replace(import.meta.env.BASE_URL)
     }
 
     // 优先用后端返回的中文 message；无响应体（断网/超时）给通用兜底文案，
