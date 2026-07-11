@@ -9,9 +9,6 @@ const game = computed(() => getGame(route.params.key))
 const boardRef = ref(null)
 const shellRef = ref(null)
 
-function onPause() {
-  boardRef.value?.onSave?.()
-}
 function onFinished() {
   shellRef.value?.refresh?.()
 }
@@ -19,7 +16,7 @@ function onFinished() {
 
 <template>
   <div class="game-play">
-    <GameShell v-if="game" ref="shellRef" :game="game" @pause="onPause">
+    <GameShell v-if="game" ref="shellRef" :game="game">
       <template #board>
         <component :is="game.component" :game-key="game.key" ref="boardRef" @finished="onFinished" />
       </template>
@@ -33,7 +30,9 @@ function onFinished() {
 
 <style scoped>
 .game-play {
-  padding-bottom: 30px;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
 }
 .game-missing {
   text-align: center;

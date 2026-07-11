@@ -3,159 +3,668 @@
 name: ClimbGame
 path: src/views/games/ClimbGame.vue
 category: business
-purpose: 示例游戏「千羽爬树」（PC 端）。仅实现游戏循环与渲染；存档/排行榜/历史走 composable，
-         不与具体接口耦合。状态契约（height/stamina/climbs）与移动端完全一致，保证跨端续玩。
 appliesTo: PC
+purpose: 千羽爬树（PC）。游戏循环 + Canvas 渲染 + 键盘控制（WASD/方向键，空格暂停）。
+         逻辑/渲染走 ../climb/{engine,render}.js（与移动端同一份）；状态契约平台无关，保证跨端续玩。
 -->
 <script setup>
-import { onMounted, reactive, ref } from 'vue'
+import { onMounted, onBeforeUnmount, ref, reactive, computed } from 'vue'
 import BaseButton from '../../components/base/BaseButton.vue'
-import { useGameSave, submitGameRecord } from '../../composables/useGame.js'
+import { getGame } from '../../games/registry.js'
+import { useGameSave, submitGameRecord, useGameLeaderboard, useGameHistory } from '../../composables/useGame.js'
 import { confirm, alert } from '../../composables/useConfirm.js'
+import config from '../../games/climb/config.js'
+import { createInitialState, serialize, buildResult, step, moveLane, GAME_OVER } from '../../games/climb/engine.js'
+import { draw } from '../../games/climb/render.js'
 
 const props = defineProps({ gameKey: { type: String, required: true } })
 const emit = defineEmits(['finished'])
 
 const save = useGameSave(props.gameKey)
-const state = reactive({ height: 0, stamina: 10, climbs: 0 })
-const finished = ref(false)
+const canvasRef = ref(null)
+const state = reactive(createInitialState(config))
+const started = ref(false)
+const helpOpen = ref(false)
 const lastResult = ref(null)
+const pendingSave = ref(null)
 
-onMounted(async () => {
-  const existing = await save.load()
-  if (existing && existing.state) {
-    const ok = await confirm({
-      title: '继续上局？',
-      message: `检测到上次在${existing.platform === 'mobile' ? '手机' : '电脑'}端的进度（高度 ${existing.score ?? 0}），要继续吗？`,
-      confirmText: '继续',
-      cancelText: '重新开始',
-    })
-    if (ok) {
-      Object.assign(state, existing.state)
-    } else {
-      await save.clear()
-    }
-  }
-})
-
-function climb() {
-  if (finished.value) return
-  const gain = 1 + Math.floor(Math.random() * 5)
-  state.height += gain
-  state.stamina -= 1
-  state.climbs += 1
-  // 每次操作即自动存档，保证中途退出也能续玩
-  save.save({ height: state.height, stamina: state.stamina, climbs: state.climbs }, state.height)
-  if (state.stamina <= 0) finish()
+// 游戏内排行榜（按钮弹出，整页即游戏，不另占侧栏）
+const game = getGame(props.gameKey)
+const boardOpen = ref(false)
+const { list: boardList, total: boardTotal, load: loadBoard } = useGameLeaderboard(props.gameKey)
+function platformLabel(p) {
+  return p === 'mobile' ? '手机' : '电脑'
+}
+function openBoard() {
+  if (state.gameOver) return
+  boardOpen.value = true
+  state.running = false
+  loadBoard()
+}
+function closeBoard() {
+  boardOpen.value = false
+  if (!state.gameOver && !helpOpen.value && !historyOpen.value) state.running = true
 }
 
-async function finish() {
-  finished.value = true
-  const result = { height: state.height, climbs: state.climbs }
+// 我的历史记录（按钮弹出：开始时间 / 结束时间 / 存活时长（暂停不计） / 得分）
+const historyOpen = ref(false)
+const { list: historyList, load: loadHistory } = useGameHistory(props.gameKey)
+function openHistory() {
+  if (state.gameOver) return
+  historyOpen.value = true
+  state.running = false
+  loadHistory()
+}
+function closeHistory() {
+  historyOpen.value = false
+  if (!state.gameOver && !helpOpen.value && !boardOpen.value) state.running = true
+}
+
+const sprite = new Image()
+sprite.src = config.character.image
+
+const paused = computed(
+  () =>
+    started.value &&
+    !state.running &&
+    !state.gameOver &&
+    !helpOpen.value &&
+    !boardOpen.value &&
+    !historyOpen.value,
+)
+
+// 输入：held 为持续按住（上下移动 + 拍击）；左右为离散换 lane，在按下边沿触发一次
+const held = reactive({ up: false, down: false, attack: false })
+
+let raf = null
+let last = null
+let autoSaveAcc = 0
+
+// 让画布填满整个舞台（整页即游戏）；内部分辨率跟随显示尺寸与 dpr
+function resize() {
+  const c = canvasRef.value
+  if (!c) return
+  const rect = c.getBoundingClientRect()
+  if (!rect.width || !rect.height) return
+  const dpr = window.devicePixelRatio || 1
+  c.width = Math.round(rect.width * dpr)
+  c.height = Math.round(rect.height * dpr)
+  config.view.width = Math.round(rect.width)
+  config.view.height = Math.round(rect.height)
+  const ctx = c.getContext('2d')
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+}
+
+function formatTime(s) {
+  const m = Math.floor(s / 60)
+  const ss = Math.floor(s % 60)
+  return `${String(m).padStart(2, '0')}:${String(ss).padStart(2, '0')}`
+}
+
+// 历史记录里的日期时间显示（毫秒时间戳或 ISO 字符串 → YYYY-MM-DD HH:mm）
+function formatDateTime(v) {
+  if (!v) return '—'
+  const d = new Date(v)
+  if (Number.isNaN(d.getTime())) return '—'
+  const p = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`
+}
+
+function loop(ts) {
+  raf = requestAnimationFrame(loop)
+  if (last == null) last = ts
+  let dt = (ts - last) / 1000
+  last = ts
+
+  if (state.running && !state.gameOver && started.value) {
+    const input = { up: held.up, down: held.down, attack: held.attack }
+    const events = step(state, dt, input, config)
+    if (events.some((e) => e.type === GAME_OVER)) onGameOver()
+    autoSaveAcc += dt * 1000
+    if (autoSaveAcc >= config.save.autoSaveIntervalMs) {
+      autoSaveAcc = 0
+      doSave()
+    }
+  }
+  const ctx = canvasRef.value?.getContext('2d')
+  if (ctx) draw(ctx, state, config, sprite)
+}
+
+async function doSave() {
+  if (state.gameOver) return
+  try {
+    await save.save(serialize(state), state.score)
+  } catch (e) {
+    /* 静默：存档失败不应打断游戏 */
+  }
+}
+
+function togglePause() {
+  if (state.gameOver || !started.value) return
+  if (helpOpen.value) {
+    closeHelp()
+    return
+  }
+  state.running = !state.running
+  if (!state.running) doSave()
+}
+function openHelp() {
+  if (state.gameOver) return
+  helpOpen.value = true
+  state.running = false
+}
+function closeHelp() {
+  helpOpen.value = false
+  if (!state.gameOver) state.running = true
+}
+
+async function onGameOver() {
+  state.running = false
+  const result = buildResult(state)
   lastResult.value = result
   try {
     await submitGameRecord(props.gameKey, result)
-    await alert({ title: '爬到顶啦', message: `最终高度 ${result.height}，共攀爬 ${result.climbs} 次！` })
+    await save.clear()
     emit('finished')
   } catch (e) {
-    await alert({ title: '出错', message: e.message || '成绩提交失败' })
+    await alert({ title: '提交失败', message: e.message || '成绩上传失败' })
   }
 }
 
-async function onSave() {
-  if (finished.value) return
-  await save.save({ height: state.height, stamina: state.stamina, climbs: state.climbs }, state.height)
-  await alert({ title: '已存档', message: '下次进来可以继续哦～' })
-}
-// 供 GameShell 的「存档/暂停」按钮调用
-defineExpose({ onSave })
-
 async function restart() {
-  await save.clear()
-  state.height = 0
-  state.stamina = 10
-  state.climbs = 0
-  finished.value = false
   lastResult.value = null
+  Object.assign(state, createInitialState(config))
+  state.startedAt = Date.now() // 记录本局真实开局时间（历史「开始时间」）
+  state.running = true
+  autoSaveAcc = 0
 }
+
+function onKeyDown(e) {
+  const k = e.key.toLowerCase()
+  if (e.code === 'Space' || k === ' ') {
+    e.preventDefault()
+    togglePause()
+    return
+  }
+  if (k === 'w' || e.key === 'ArrowUp') {
+    e.preventDefault()
+    held.up = true
+  } else if (k === 's' || e.key === 'ArrowDown') {
+    e.preventDefault()
+    held.down = true
+  } else if (k === 'a' || e.key === 'ArrowLeft') {
+    e.preventDefault()
+    if (!e.repeat && state.running && !state.gameOver) moveLane(state, -1, config)
+  } else if (k === 'd' || e.key === 'ArrowRight') {
+    e.preventDefault()
+    if (!e.repeat && state.running && !state.gameOver) moveLane(state, 1, config)
+  } else if (k === 'j') {
+    e.preventDefault()
+    held.attack = true
+  }
+}
+function onKeyUp(e) {
+  const k = e.key.toLowerCase()
+  if (k === 'w' || e.key === 'ArrowUp') held.up = false
+  else if (k === 's' || e.key === 'ArrowDown') held.down = false
+  else if (k === 'j') held.attack = false
+}
+
+function onVisibility() {
+  if (document.hidden && state.running && !state.gameOver) {
+    state.running = false
+    doSave()
+  }
+}
+
+onMounted(async () => {
+  window.addEventListener('keydown', onKeyDown)
+  window.addEventListener('keyup', onKeyUp)
+  window.addEventListener('beforeunload', doSave)
+  window.addEventListener('resize', resize)
+  document.addEventListener('visibilitychange', onVisibility)
+
+  // 让画布填满整个舞台（整页即游戏）
+  resize()
+  // 进入页面只渲染一帧静态背景（不启动循环），等用户点「开始游戏」
+  const ctx = canvasRef.value?.getContext('2d')
+  if (ctx) draw(ctx, state, config, sprite)
+  sprite.onload = () => {
+    if (!started.value) {
+      const c = canvasRef.value?.getContext('2d')
+      if (c) draw(c, state, config, sprite)
+    }
+  }
+
+  // 预拉存档（不影响开始；点击开始后再决定是否续局）
+  try {
+    pendingSave.value = await save.load()
+  } catch (e) {
+    pendingSave.value = null
+  }
+})
+
+async function startGame() {
+  if (started.value) return
+  const existing = pendingSave.value
+  if (existing && existing.state) {
+    const plat = existing.platform === 'mobile' ? '手机' : '电脑'
+    const ok = await confirm({
+      title: '继续上局？',
+      message: `检测到上次在${plat}端的进度（得分 ${existing.score ?? 0}），要继续吗？`,
+      confirmText: '继续',
+      cancelText: '重新开始',
+    })
+    if (ok) Object.assign(state, createInitialState(config, existing.state))
+    else await save.clear()
+  }
+  if (!state.startedAt) state.startedAt = Date.now() // 新开局记开始时间；续玩则沿用存档里的原始开局时间
+  state.running = true
+  started.value = true
+  pendingSave.value = null
+  last = null
+  raf = requestAnimationFrame(loop)
+}
+
+onBeforeUnmount(() => {
+  if (raf) cancelAnimationFrame(raf)
+  window.removeEventListener('keydown', onKeyDown)
+  window.removeEventListener('keyup', onKeyUp)
+  window.removeEventListener('beforeunload', doSave)
+  window.removeEventListener('resize', resize)
+  document.removeEventListener('visibilitychange', onVisibility)
+  doSave()
+})
+
+// 供 GameShell 的「暂停/继续」按钮调用
+defineExpose({ togglePause, onSave: doSave })
 </script>
 
 <template>
-  <div class="climb">
-    <div class="climb__stats">
-      <div class="climb__stat"><span>高度</span><b>{{ state.height }}</b></div>
-      <div class="climb__stat"><span>体力</span><b>{{ state.stamina }}</b></div>
-      <div class="climb__stat"><span>攀爬</span><b>{{ state.climbs }}</b></div>
+  <div class="climb-game">
+    <div class="cg-stage">
+      <canvas ref="canvasRef" class="cg-canvas" />
+
+      <div class="cg-hud">
+        <div class="cg-hearts">
+          <span v-for="n in config.character.maxHp" :key="n" class="cg-heart" :class="{ 'is-empty': n > state.hp }">♥</span>
+        </div>
+        <div class="cg-right">
+          <span v-if="state.attacking" class="cg-atk-badge">下滑攻击中</span>
+          <span class="cg-score">{{ state.score }}</span>
+          <span class="cg-time">{{ formatTime(state.timeSurvived) }}</span>
+          <button class="cg-board-btn" title="排行榜" @click="openBoard">榜</button>
+          <button class="cg-board-btn" title="历史记录" @click="openHistory">史</button>
+          <button class="cg-help-btn" title="玩法说明" @click="openHelp">?</button>
+        </div>
+      </div>
+
+      <div v-if="!started && !state.gameOver" class="cg-overlay">
+        <div class="cg-start">
+          <h3>千羽爬树</h3>
+          <p>3 棵树之间上爬、长按下键俯冲下滑，躲开往上爬的虫子并击落普通虫得分。</p>
+          <BaseButton type="primary" @click="startGame">开始游戏</BaseButton>
+        </div>
+      </div>
+
+      <div v-if="paused" class="cg-overlay">
+        <p class="cg-overlay__title">已暂停</p>
+        <BaseButton type="primary" @click="togglePause">继续游戏</BaseButton>
+      </div>
+
+      <div v-if="helpOpen" class="cg-overlay">
+        <div class="cg-help">
+          <h3>玩法说明</h3>
+          <ul>
+            <li v-for="(t, i) in config.help" :key="i">{{ t }}</li>
+          </ul>
+          <BaseButton type="primary" @click="closeHelp">继续游戏</BaseButton>
+        </div>
+      </div>
+
+      <div v-if="state.gameOver" class="cg-overlay">
+        <div class="cg-over">
+          <h3>本局结束</h3>
+          <p>得分 <b>{{ lastResult.score }}</b> · 击虫 <b>{{ lastResult.bugsKilled }}</b></p>
+          <BaseButton type="primary" @click="restart">再来一局</BaseButton>
+        </div>
+      </div>
+
+      <div v-if="boardOpen" class="cg-overlay">
+        <div class="cg-board">
+          <h3>排行榜</h3>
+          <ol class="cg-board__list">
+            <li v-for="row in boardList" :key="row.userId" class="cg-board__item">
+              <span class="cg-board__no">{{ row.rank }}</span>
+              <span class="cg-board__name">{{ row.nickname }}</span>
+              <span class="cg-board__plat">{{ platformLabel(row.platform) }}</span>
+              <span class="cg-board__score">{{ row.score }} {{ game.scoreLabel }}</span>
+            </li>
+            <li v-if="!boardList.length" class="cg-board__empty">还没有记录，来抢第一名～</li>
+          </ol>
+          <BaseButton type="primary" @click="closeBoard">返回游戏</BaseButton>
+        </div>
+      </div>
+
+      <div v-if="historyOpen" class="cg-overlay">
+        <div class="cg-hist">
+          <h3>我的历史</h3>
+          <div class="cg-hist__list">
+            <div v-for="row in historyList" :key="row.id" class="cg-hist__item">
+              <div class="cg-hist__top">
+                <span class="cg-hist__score">{{ row.score }} {{ game.scoreLabel }}</span>
+                <span class="cg-hist__alive">存活 {{ formatTime(row.detail?.timeSurvived || 0) }}</span>
+              </div>
+              <div class="cg-hist__times">
+                <span>开始 {{ formatDateTime(row.detail?.startedAt) }}</span>
+                <span>结束 {{ formatDateTime(row.finishedAt) }}</span>
+              </div>
+            </div>
+            <p v-if="!historyList.length" class="cg-hist__empty">还没有历史记录，先玩一局吧～</p>
+          </div>
+          <BaseButton type="primary" @click="closeHistory">返回游戏</BaseButton>
+        </div>
+      </div>
     </div>
 
-    <div class="climb__tree">
-      <div class="climb__bird" :style="{ bottom: Math.min(state.height * 3, 230) + 'px' }">🐦</div>
-      <div class="climb__trunk" />
-    </div>
-
-    <BaseButton v-if="!finished" type="primary" @click="climb">攀爬一下</BaseButton>
-
-    <div v-else class="climb__over">
-      <p>这局结束啦～ 高度 <b>{{ lastResult.height }}</b></p>
-      <BaseButton @click="restart">再来一局</BaseButton>
-    </div>
+    <p class="cg-tip">电脑：W/↑ 上爬 · 长按 S/↓ = 下滑攻击（俯冲下滑击虫）· A/← 或 D/→ 左右换格（按一下一格）· 空格 暂停</p>
   </div>
 </template>
 
 <style scoped>
-.climb {
+.climb-game {
+  width: 100%;
+  height: 100%;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 18px;
+  overflow: hidden;
 }
-.climb__stats {
+.cg-stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  overflow: hidden;
+}
+.cg-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.cg-hud {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
   display: flex;
-  gap: 14px;
-}
-.climb__stat {
-  display: flex;
-  flex-direction: column;
+  justify-content: space-between;
   align-items: center;
-  min-width: 76px;
-  padding: 10px 12px;
-  background: rgba(91, 140, 123, 0.1);
-  border-radius: 12px;
+  padding: 10px 14px;
+  pointer-events: none;
 }
-.climb__stat span {
-  font-size: 12px;
-  color: var(--muted);
-}
-.climb__stat b {
+.cg-hearts {
+  display: flex;
+  gap: 4px;
   font-size: 22px;
+  line-height: 1;
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.2));
+}
+.cg-heart {
+  color: #e74c3c;
+}
+.cg-heart.is-empty {
+  color: rgba(255, 255, 255, 0.55);
+}
+.cg-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  pointer-events: auto;
+}
+.cg-time {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.25);
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+.cg-score {
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+  font-size: 18px;
+  color: #fff;
+  background: rgba(201, 116, 59, 0.55);
+  padding: 2px 10px;
+  border-radius: 999px;
+}
+.cg-atk-badge {
+  font-weight: 800;
+  font-size: 13px;
+  color: #fff;
+  background: linear-gradient(90deg, #ff8c42, #c9743b);
+  padding: 3px 10px;
+  border-radius: 999px;
+  animation: cg-atk-pulse 0.5s ease-in-out infinite alternate;
+}
+@keyframes cg-atk-pulse {
+  from {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(255, 140, 66, 0.6);
+  }
+  to {
+    transform: scale(1.06);
+    box-shadow: 0 0 0 5px rgba(255, 140, 66, 0);
+  }
+}
+.cg-board-btn {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(0, 0, 0, 0.25);
+  color: #fff;
+  font-weight: 700;
+  cursor: pointer;
+}
+.cg-board-btn:hover {
+  background: rgba(0, 0, 0, 0.4);
+}
+.cg-help-btn {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(0, 0, 0, 0.25);
+  color: #fff;
+  font-weight: 700;
+  cursor: pointer;
+}
+.cg-help-btn:hover {
+  background: rgba(0, 0, 0, 0.4);
+}
+.cg-board {
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 20px 22px;
+  max-width: 90%;
+  width: 360px;
+  text-align: left;
+}
+.cg-board h3 {
+  margin: 0 0 12px;
+  font-family: var(--font-display);
+}
+.cg-board__list {
+  list-style: none;
+  margin: 0 0 14px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 50vh;
+  overflow-y: auto;
+}
+.cg-board__item {
+  display: grid;
+  grid-template-columns: 26px 1fr auto;
+  grid-template-areas: 'no name plat' 'no score score';
+  gap: 2px 8px;
+  align-items: center;
+  padding: 7px 10px;
+  border-radius: 10px;
+  background: rgba(91, 140, 123, 0.08);
+}
+.cg-board__no {
+  grid-area: no;
+  font-weight: 700;
+  color: var(--primary);
+  text-align: center;
+}
+.cg-board__name {
+  grid-area: name;
+  font-weight: 600;
+}
+.cg-board__plat {
+  grid-area: plat;
+  font-size: 12px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  justify-self: end;
+  background: rgba(201, 116, 59, 0.18);
+  color: var(--primary);
+}
+.cg-board__score {
+  grid-area: score;
+  font-size: 13px;
   color: var(--text);
 }
-.climb__tree {
-  position: relative;
-  width: 120px;
-  height: 260px;
-  display: flex;
-  justify-content: center;
-}
-.climb__trunk {
-  width: 18px;
-  height: 100%;
-  border-radius: 9px;
-  background: var(--primary);
-  opacity: 0.85;
-}
-.climb__bird {
-  position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
-  font-size: 30px;
-  transition: bottom 0.25s ease;
-}
-.climb__over {
+.cg-board__empty {
+  color: var(--muted);
+  font-size: 13px;
   text-align: center;
+  padding: 16px 0;
+}
+.cg-hist {
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 20px 22px;
+  max-width: 90%;
+  width: 360px;
+  text-align: left;
+}
+.cg-hist h3 {
+  margin: 0 0 12px;
+  font-family: var(--font-display);
+}
+.cg-hist__list {
+  margin: 0 0 14px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 8px;
+  max-height: 50vh;
+  overflow-y: auto;
+}
+.cg-hist__item {
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(91, 140, 123, 0.08);
+}
+.cg-hist__top {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 4px;
+}
+.cg-hist__score {
+  font-weight: 800;
+  color: var(--primary);
+  font-variant-numeric: tabular-nums;
+}
+.cg-hist__alive {
+  font-size: 12px;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.cg-hist__times {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 12px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.cg-hist__empty {
+  color: var(--muted);
+  font-size: 13px;
+  text-align: center;
+  padding: 16px 0;
+}
+.cg-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
   align-items: center;
+  justify-content: center;
+  gap: 16px;
+  background: rgba(40, 30, 20, 0.55);
+  backdrop-filter: blur(2px);
+}
+.cg-overlay__title {
+  color: #fff;
+  font-size: 24px;
+  font-family: var(--font-display);
+}
+.cg-help,
+.cg-over {
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 20px 22px;
+  max-width: 86%;
+  text-align: left;
+}
+.cg-start {
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 24px 26px;
+  max-width: 86%;
+  text-align: center;
+}
+.cg-start h3 {
+  margin: 0 0 8px;
+  font-family: var(--font-display);
+  font-size: 26px;
+}
+.cg-start p {
+  margin: 0 0 16px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+.cg-help h3,
+.cg-over h3 {
+  margin: 0 0 10px;
+  font-family: var(--font-display);
+}
+.cg-help ul {
+  margin: 0 0 14px;
+  padding-left: 18px;
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.7;
+}
+.cg-over p {
+  margin: 0 0 14px;
+  color: var(--muted);
+}
+.cg-over b {
+  color: var(--primary);
+}
+.cg-tip {
+  color: var(--muted);
+  font-size: 12px;
+  text-align: center;
+  margin: 0;
 }
 </style>

@@ -93,13 +93,15 @@ export default {
   key: 'climb',                 // 与前端 registry、路由 :key 一致
   name: '千羽爬树',
   order: 'desc',                // 排行榜方向：'desc' 高分在前 | 'asc' 低分（用时）在前
-  scoreLabel: '高度',           // 榜单主列中文名（D8）
-  // 校验前端上报的「进行中状态」是否自洽（防坏存档 / 防篡改），返回 true/false
-  validateState(state) { /* 例如：state 含 level:number、hp:number 等且范围合法 */ },
+  scoreLabel: '得分',           // 榜单主列中文名（D8）
+  // 状态（存档）形状：{ lane, h, hp, score, bugsKilled, timeSurvived, shieldRemainingMs }
+  //   lane：横向离散位置 0..5（3 棵树 × 左/右两侧）；h：沿树高度（上下连续）
+  validateState(state) { /* 各字段类型/范围合法，防坏存档 */ },
+  // 结果（结束上报）形状：{ score, bugsKilled, timeSurvived, hpLeft }
   // 校验「结束结果元组」是否自洽（防作弊核心），返回 true/false
-  validateResult(result) { /* result={moves,time,collected,...} 内部可互验 */ },
+  validateResult(result) { /* 例如：bugsKilled 与 score 守恒、hpLeft<=maxHp、timeSurvived 上限 */ },
   // 由结果算官方排序分（前端仅显示，最终以服务端为准）
-  score(result) { /* 返回 Int */ },
+  score(result) { return result.score },
   // 把 detail(JSON) 转成榜单/历史要展示的字段数组 [{ label, value }]
   formatDetail(detail) { /* 例如 [{label:'用时',value:'42s'},{label:'步数',value:18}] */ },
 }

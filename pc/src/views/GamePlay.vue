@@ -9,10 +9,6 @@ const game = computed(() => getGame(route.params.key))
 const boardRef = ref(null)
 const shellRef = ref(null)
 
-// GameShell 的「存档/暂停」按钮 → 转发给具体游戏组件去存档
-function onPause() {
-  boardRef.value?.onSave?.()
-}
 // 游戏结束提交成绩后 → 刷新排行榜
 function onFinished() {
   shellRef.value?.refresh?.()
@@ -21,7 +17,7 @@ function onFinished() {
 
 <template>
   <div class="game-play">
-    <GameShell v-if="game" ref="shellRef" :game="game" @pause="onPause">
+    <GameShell v-if="game" ref="shellRef" :game="game">
       <template #board>
         <component :is="game.component" :game-key="game.key" ref="boardRef" @finished="onFinished" />
       </template>
@@ -35,7 +31,9 @@ function onFinished() {
 
 <style scoped>
 .game-play {
-  padding-bottom: 40px;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
 }
 .game-missing {
   text-align: center;
