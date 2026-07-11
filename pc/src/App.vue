@@ -1,6 +1,7 @@
 <script setup>
 import { onMounted } from 'vue'
 import { useAuthStore } from './stores/auth.js'
+import ConfirmDialog from './components/base/ConfirmDialog.vue'
 
 const auth = useAuthStore()
 
@@ -17,4 +18,5 @@ onMounted(async () => {
 
 <template>
   <router-view />
+  <ConfirmDialog />
 </template>

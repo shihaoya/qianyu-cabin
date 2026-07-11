@@ -6,6 +6,7 @@ import CabinLogo from '../components/base/CabinLogo.vue'
 import CabinScene from '../components/base/CabinScene.vue'
 import BaseButton from '../components/base/BaseButton.vue'
 import EntryCard from '../components/base/EntryCard.vue'
+import { alert } from '../composables/useConfirm.js'
 
 const router = useRouter()
 const auth = useAuthStore()
@@ -14,12 +15,12 @@ const games = [
   { id: 'climb', name: '千羽爬树', icon: 'climb' },
 ]
 
-function onPlay(game) {
+async function onPlay(game) {
   if (!auth.isLoggedIn) {
     router.push('/login')
     return
   }
-  window.alert(`${game.name} 功能开发中~`)
+  await alert({ title: '提示', message: `${game.name} 功能开发中~` })
 }
 </script>
 

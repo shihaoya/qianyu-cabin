@@ -34,10 +34,15 @@ api.interceptors.response.use(
     const data = err.response?.data
 
     if (status === 401) {
-      // token 失效：清 token 后整页刷新回首页（与手动退出行为一致，
-      // 彻底销毁残留页面状态），首页有登录入口可重新登录。
+      // 仅当原本已登录（携带 token）时的 401 才是 token 失效，
+      // 需要整页刷新回首页（与手动退出行为一致，销毁残留状态）。
+      // 登录/注册失败后端同样返回 401，但此时根本没有 token，
+      // 不应跳转，应交由页面展示“昵称或密码错误”等文案。
+      const hadToken = !!localStorage.getItem('qianyu_token')
       localStorage.removeItem('qianyu_token')
-      window.location.replace(import.meta.env.BASE_URL)
+      if (hadToken) {
+        window.location.replace(import.meta.env.BASE_URL)
+      }
     }
 
     // 优先用后端返回的中文 message；无响应体（断网/超时）给通用兜底文案，
