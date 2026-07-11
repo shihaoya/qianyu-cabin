@@ -3,6 +3,7 @@ import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth.js'
 import { can, CAP } from '../permissions.js'
 import GameArea from '../components/GameArea.vue'
+import { GAMES } from '../games/registry.js'
 import CabinLogo from '../components/base/CabinLogo.vue'
 import CabinScene from '../components/base/CabinScene.vue'
 import BaseButton from '../components/base/BaseButton.vue'
@@ -13,16 +14,14 @@ import TabBar from '../components/base/TabBar.vue'
 const router = useRouter()
 const auth = useAuthStore()
 
-const games = [
-  { id: 'climb', name: '千羽爬树', icon: 'climb' },
-]
+const games = GAMES
 
 async function onPlay(game) {
   if (!auth.isLoggedIn) {
     router.push('/login')
     return
   }
-  await alert({ title: '提示', message: `${game.name} 功能开发中~` })
+  router.push({ name: 'game', params: { key: game.key } })
 }
 
 function onLogout() {

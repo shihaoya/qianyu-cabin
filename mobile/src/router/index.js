@@ -13,6 +13,12 @@ const routes = [
     meta: { cap: CAP.MANAGE_USERS },
     component: () => import('../views/AdminUsers.vue'),
   },
+  {
+    path: '/games/:key',
+    name: 'game',
+    meta: { auth: true },
+    component: () => import('../views/GamePlay.vue'),
+  },
   { path: '/:pathMatch(.*)*', name: 'not-found', component: () => import('../views/NotFound.vue') },
 ]
 
@@ -25,6 +31,7 @@ router.beforeEach((to) => {
   const auth = useAuthStore()
   if (to.name === 'login' && auth.isLoggedIn) return { name: 'home' }
   if (to.meta.cap && !can(auth.user, to.meta.cap)) return { name: 'home' }
+  if (to.meta.auth && !auth.isLoggedIn) return { name: 'login' }
 })
 
 export default router

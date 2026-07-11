@@ -93,6 +93,7 @@ qianyu-cabin/
 | 要写/改移动端代码（与 PC 相同约定 + 移动布局差异） | `DEV-MOBILE.md` |
 | 要写/改后端代码（分层、响应结构、错误码、Prisma、鉴权） | `DEV-SERVER.md` |
 | 要部署/配 nginx/看构建产物去向与发布流程 | `DEPLOYMENT.md` |
+| 要设计/实现「小屋游戏」（通用框架：存档/排行榜/历史/跨端续玩、engine 接口） | `GAME-ARCHITECTURE.md` |
 | 接手整个仓库、需要快速建立全局认知（含常用命令） | 根目录 `CODEBUDDY.md` |
 
 规则：

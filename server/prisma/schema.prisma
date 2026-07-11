@@ -21,6 +21,33 @@ model Message {
   isAnonymous Boolean   @default(false)
   userId      Int?
   nickname    String?
-  createdAt   DateTime  @default(now())
+  createdAt   DateTime @default(now())
   deletedAt   DateTime? // 逻辑删除标记：为空表示未删除，有值表示已删除的时间
+}
+
+// 游戏存档：每用户每游戏仅一个（D3）。state 为平台无关纯数据 JSON，保证 PC/移动端可交叉续玩（D7）
+model GameSave {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  gameKey   String   // 对应 engine.key，如 "climb"
+  state     String   // JSON 序列化的游戏状态（不含 DOM/Canvas 引用）
+  score     Int?     // 暂存时的当前进度/分数
+  platform  String   @default("pc") // "pc" | "mobile"，记录上次存档端（D6）
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@unique([userId, gameKey])
+  @@index([gameKey])
+}
+
+// 一局结束 = 一条记录；历史与排行榜同源（排行榜=按用户取最佳派生）
+model GameRecord {
+  id         Int      @id @default(autoincrement())
+  userId     Int
+  gameKey    String
+  score      Int      // 排序键（由 engine.score 计算，语义各游戏自定，D8）
+  detail     String?  // JSON：每游戏自定义明细（用时/步数/难度…），供榜单/历史展示
+  platform   String   @default("pc") // "pc" | "mobile"，D6 榜单展示
+  finishedAt DateTime @default(now())
+  @@index([gameKey, score])
+  @@index([userId, gameKey])
 }

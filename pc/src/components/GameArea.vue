@@ -22,7 +22,7 @@ const emit = defineEmits(['select'])
   <div class="tile-grid">
     <EntryCard
       v-for="game in games"
-      :key="game.id"
+      :key="game.key || game.id"
       tile
       :icon="game.icon"
       :title="game.name"

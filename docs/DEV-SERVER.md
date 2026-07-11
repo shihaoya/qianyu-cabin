@@ -104,6 +104,9 @@ server/
 | 1004 | 401 | 未登录/登录失效 | 鉴权中间件 |
 | 1005 | 403 | 无权限（非管理角色） | requireAdmin 中间件（requireCap('manageUsers')） |
 | 1006 | 401 | 原密码不正确 | 修改密码 `POST /auth/change-password` |
+| 1007 | 404 | 游戏不存在（gameKey 未注册） | 游戏相关接口 `GET/PUT/POST/DELETE /api/games/:key/*` |
+| 1008 | 400 | 存档状态非法（engine.validateState 失败） | `PUT /api/games/:key/save` |
+| 1009 | 400 | 游戏结果非法（engine.validateResult 失败） | `POST /api/games/:key/records` |
 | 5000 | 500 | 服务端未知错误 | 错误中间件 |
 
 > 新增业务错误码时，在此表登记并在对应接口文档/注释说明，保证 PC/移动端一致。

@@ -22,7 +22,7 @@ const emit = defineEmits(['select'])
   <div class="game-list">
     <EntryCard
       v-for="game in games"
-      :key="game.id"
+      :key="game.key || game.id"
       :icon="game.icon"
       :title="game.name"
       desc="进去玩玩 ~"
