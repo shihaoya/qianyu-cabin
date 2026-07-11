@@ -14,11 +14,18 @@ server/
 │   ├── config/index.js      # 环境变量集中读取与校验
 │   ├── db/index.js          # PrismaClient 单例
 │   ├── middleware/
-│   │   ├── auth.js          # JWT 校验中间件
+│   │   ├── auth.js          # JWT 校验中间件（auth 硬鉴权 / optionalAuth 软鉴权）
+│   │   ├── requireAdmin.js  # 仅 admin（开发者）可访问
 │   │   └── error.js         # 统一错误处理中间件
 │   ├── routes/              # 路由（仅做分发，不含业务逻辑）
+│   │   ├── guestbook.js     # 留言板（POST 支持匿名）
+│   │   └── admin.js         # 用户管理（仅开发者）
 │   ├── controllers/         # 控制器（解析入参、调用 service、组装响应）
+│   │   ├── guestbookController.js
+│   │   └── adminController.js
 │   ├── services/            # 业务逻辑（与数据库交互，可复用）
+│   │   ├── guestbookService.js
+│   │   └── userService.js   # 注册/登录/查用户/改角色/分页列表
 │   ├── utils/
 │   │   ├── response.js      # 统一响应 { code, data, message }
 │   │   └── errors.js        # 业务错误类（携带 code/httpStatus）
@@ -95,6 +102,7 @@ server/
 | 1002 | 400 | 昵称已存在 | 注册 |
 | 1003 | 401 | 昵称或密码错误 | 登录 |
 | 1004 | 401 | 未登录/登录失效 | 鉴权中间件 |
+| 1005 | 403 | 无权限（非开发者） | requireAdmin 中间件 |
 | 5000 | 500 | 服务端未知错误 | 错误中间件 |
 
 > 新增业务错误码时，在此表登记并在对应接口文档/注释说明，保证 PC/移动端一致。
@@ -141,3 +149,29 @@ node node_modules/prisma/build/index.js migrate dev --name <name>
 - 切勿改用 `pnpm approve-builds` 手批——它会交互、不利于非交互部署；以 `pnpm-workspace.yaml` 白名单为准。
 - `.npmrc` 的 `dangerously-allow-all-builds` 在本机 pnpm 11 下仍被 `verify-deps-before-run` 拦截，不可靠，不要用。
 - 数据库文件 `*.db` 在 `.gitignore` 已忽略；`prisma/schema.prisma` 与 `prisma/migrations/` 需入库。
+
+## 13. 角色、留言板与用户管理约定
+
+### 13.1 角色模型（User.role）
+
+- 取值：`"user"`（普通用户）| `"admin"`（开发者）。默认 `"user"`（见 `schema.prisma`）。
+- JWT 载荷携带 `role`，`auth` 中间件把 `req.user.role` 透传给下游；`publicUser` 在登录响应里一并返回 `role`。
+- 前端据此渲染入口：仅 `role === 'admin'` 显示「用户管理」，路由用 `requireAdmin` 守卫（见 `DEV-PC.md`/`DEV-MOBILE.md` 的路由章节）。
+- 改角色走 `userService.setRole`，不在此处做密码等敏感字段回显。
+
+### 13.2 匿名留言板（Message）
+
+- 模型 `Message`：`content` 必填，`isAnonymous` 标记，`userId`/`nickname` 可空。
+- **匿名 = 不存储任何身份信息**：`POST /api/guestbook` 经 `optionalAuth` 软鉴权——带合法 token 则记录 `userId`+`nickname` 并置 `isAnonymous=false`；无 token 或匿名勾选时 `userId`/`nickname` 均为 `null`、`isAnonymous=true`。**绝不落库 IP、邮箱等可定位身份的数据。**
+- 内容校验前置：`createMessage` 在 service 层判空与长度（≤500），失败抛 `AppError(1001)`。
+- 列表 `GET /api/guestbook` 返回倒序留言（含 `isAnonymous`/`nickname`），供首页/留言页展示。
+
+### 13.3 仅开发者可见的用户管理
+
+- 双重拦截：前端路由守卫 `requireAdmin`（无 admin 角色直接跳首页/登录）+ 后端 `middleware/requireAdmin.js`（非 admin 返回 `1005`）。两端缺一会漏权限。
+- 列表 `GET /api/admin/users`：`userService.listUsers` 分页返回 `{ list, total }`，`select` 剔除 `passwordHash`。
+- 改角色 `PATCH /api/admin/users/:id/role`：`adminController` 调 `setRole`；**禁止把仅存的最后一个 admin 降级、并禁止把自己降级**（保持至少一名开发者），违例抛 `AppError(1005)`。
+- 提升某用户为开发者：用脚本（不连前端）`node scripts/promote-admin.mjs <昵称>`，仅开发期使用。
+
+> 权限边界是安全红线：任何新增的「管理类」接口都必须挂 `requireAdmin`，且前端对应入口/路由同步加 `isAdmin` 判断。
+

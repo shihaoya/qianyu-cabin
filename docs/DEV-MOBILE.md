@@ -10,7 +10,7 @@
 - 第 1 节 目录结构：仅 `layouts/` 改为移动态布局（底部 Tab 栏），其余相同。
 - 第 2 节 命名约定：完全相同（kebab-case 文件、PascalCase 组件、useXxx、camelCase 变量）。
 - 第 3 节 组件代码组织（`<script setup>` 顺序）：完全相同。
-- 第 4 节 路由与守卫：完全相同（含 `meta.requiresAuth` 与全局守卫）。
+- 第 4 节 路由与守卫：完全相同（含 `meta.requiresAuth`、开发者专属 `meta.requiresAdmin` 守卫、按 `isAdmin` 显隐管理入口的约定）。
 - 第 5 节 状态管理（Pinia）：完全相同（token key 同为 `qianyu_token`）。
 - 第 6 节 API 客户端：`baseURL` 同为 `/server/api`、拦截器逻辑完全相同。
 - 第 8 节 错误处理与可靠性：完全相同（统一提示、loading 态、不吞异常）。
@@ -22,7 +22,7 @@
 移动端沿用 PC 端同一套设计令牌（`styles/theme.css`：暖奶油底、陶土橙、鼠尾草绿、圆角 14px），**不复写配色**，仅布局与交互适配小屏：
 
 - **视口**：`index.html` 的 `<meta name="viewport">` 设 `width=device-width, initial-scale=1, viewport-fit=cover`；禁止整体缩放（`user-scalable=no`）按体验需要决定。
-- **布局**：单栏流式布局，主内容两侧留安全边距（`env(safe-area-inset-*)`）；主导航用**底部 Tab 栏**（`layouts/DefaultLayout.vue` 内含 `BottomNav`）。
+- **布局**：单栏流式布局，主内容两侧留安全边距（`env(safe-area-inset-*)`）；**不使用底部 Tab 栏**。首页（`Home.vue`）以「区块」流式排布：游戏区 → 互动区 → 关于小屋。互动区内含跳转入口：留言板（`RouterLink` → `/guestbook`）、用户管理（仅 `isAdmin` 可见 → `/admin/users`）。
 - **尺寸单位**：字号/间距用 `rem` 或 `vw`（基准便于跨设备），不写死大像素；触控目标高度 ≥ `44px`。
 - **断点**：以 `max-width: 480px` 为主适配目标，必要时 `481–768px` 兜底；不针对桌面做复杂布局。
 - **基础组件**：与 PC 端共用同一套自研组件（`BaseButton`/`BaseCard`/`BaseInput` 等）与同一套内联 SVG 图标，仅可通过 props 调整尺寸/密度，不得各写一套。

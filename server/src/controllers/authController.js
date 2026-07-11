@@ -5,13 +5,15 @@ import { ERR } from '../utils/errors.js'
 import { sendOk } from '../utils/response.js'
 
 function publicUser(user) {
-  return { id: user.id, nickname: user.nickname, createdAt: user.createdAt }
+  return { id: user.id, nickname: user.nickname, role: user.role, createdAt: user.createdAt }
 }
 
 function signToken(user) {
-  return jwt.sign({ sub: user.id, nickname: user.nickname }, config.jwtSecret, {
-    expiresIn: config.jwtExpiresIn,
-  })
+  return jwt.sign(
+    { sub: user.id, nickname: user.nickname, role: user.role },
+    config.jwtSecret,
+    { expiresIn: config.jwtExpiresIn },
+  )
 }
 
 export async function registerUser(req, res) {

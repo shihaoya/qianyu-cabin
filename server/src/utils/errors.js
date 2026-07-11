@@ -11,4 +11,5 @@ export const ERR = {
   NICKNAME_TAKEN: (message = '昵称已存在') => new AppError(1002, message, 400),
   BAD_CREDENTIALS: (message = '昵称或密码错误') => new AppError(1003, message, 401),
   UNAUTHENTICATED: (message = '未登录或登录失效') => new AppError(1004, message, 401),
+  FORBIDDEN: (message = '无权访问') => new AppError(1005, message, 403),
 }

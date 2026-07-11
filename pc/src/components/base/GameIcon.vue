@@ -3,7 +3,7 @@
 name: GameIcon
 path: src/components/base/GameIcon.vue
 category: base
-purpose: 按 type 渲染游戏图标（内联 SVG，便于扩展新游戏）
+purpose: 按 type 渲染手绘风图标（内联 SVG，暖色配色）：游戏 climb、留言板 message、用户管理 users，便于扩展
 appliesTo: PC
 props: type(String, 必填), size(Number=56)
 events: 无
@@ -36,7 +36,18 @@ defineProps({
         <circle cx="12" cy="-7" r="1.6" fill="#fff" />
       </g>
     </template>
-    <!-- 后续新游戏：在此追加 v-else-if="type === 'xxx'" 分支 -->
+    <template v-else-if="type === 'message'">
+      <rect x="46" y="56" width="108" height="72" rx="20" fill="var(--accent)" opacity="0.85" />
+      <path d="M72 128 l0 22 24 -18Z" fill="var(--accent)" opacity="0.85" />
+      <path d="M68 88 h64 M68 104 h46" stroke="#fff" stroke-width="7" stroke-linecap="round" />
+    </template>
+    <template v-else-if="type === 'users'">
+      <circle cx="130" cy="80" r="20" fill="var(--accent)" opacity="0.6" />
+      <path d="M106 132 a24 20 0 0 1 48 0Z" fill="var(--accent)" opacity="0.6" />
+      <circle cx="74" cy="90" r="24" fill="var(--primary)" />
+      <path d="M50 142 a24 24 0 0 1 48 0Z" fill="var(--primary)" />
+    </template>
+    <!-- 后续新游戏/功能：在此追加 v-else-if="type === 'xxx'" 分支 -->
   </svg>
 </template>
 

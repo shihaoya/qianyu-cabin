@@ -23,3 +23,20 @@ export async function verifyCredentials(nickname, password) {
 export async function getUserById(id) {
   return prisma.user.findUnique({ where: { id } })
 }
+
+export async function setRole(id, role) {
+  return prisma.user.update({ where: { id }, data: { role } })
+}
+
+export async function listUsers({ page = 1, pageSize = 20 } = {}) {
+  const where = {}
+  const total = await prisma.user.count({ where })
+  const list = await prisma.user.findMany({
+    where,
+    orderBy: { createdAt: 'desc' },
+    skip: (page - 1) * pageSize,
+    take: pageSize,
+    select: { id: true, nickname: true, role: true, createdAt: true },
+  })
+  return { list, total }
+}
