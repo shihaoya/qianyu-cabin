@@ -2,11 +2,16 @@
 import { ref, onMounted } from 'vue'
 import { listUsers, updateRole } from '../api/admin.js'
 import { useAuthStore } from '../stores/auth.js'
+import { can, roleLabel, ROLE, ROLES, CAP } from '../permissions.js'
 import AppHeader from '../components/base/AppHeader.vue'
 import BaseCard from '../components/base/BaseCard.vue'
 import BaseButton from '../components/base/BaseButton.vue'
 
 const auth = useAuthStore()
+
+const roleOptions = can(auth.user, CAP.OWNER_TOOLS)
+  ? ROLES
+  : ROLES.filter((r) => r !== ROLE.OWNER)
 const users = ref([])
 const total = ref(0)
 const error = ref('')
@@ -23,6 +28,8 @@ async function load() {
 }
 
 function openEdit(user) {
+  // 站长只能由站长修改（且不能改自己），因此管理员对站长、以及本人都不开放编辑
+  if (user.role === ROLE.OWNER || user.id === auth.user.id) return
   editing.value = user
   draftRole.value = user.role
 }
@@ -57,17 +64,24 @@ onMounted(load)
     <main class="page__main">
       <section class="qy-rise">
         <h1 class="au-title">用户管理</h1>
-        <p class="au-sub">共 {{ total }} 位用户 · 仅开发者可见</p>
+        <p class="au-sub">共 {{ total }} 位用户 · 仅管理员（开发者）与开发管理员（站长）可见</p>
         <p v-if="error" class="au-error">{{ error }}</p>
         <div class="au-list">
           <BaseCard v-for="u in users" :key="u.id" class="au-item">
             <div class="au-item__main">
               <span class="au-item__name">{{ u.nickname }}</span>
               <span class="au-item__meta">
-                注册于 {{ new Date(u.createdAt).toLocaleDateString() }} · {{ u.role === 'admin' ? '开发者' : '家庭成员' }}
+                注册于 {{ new Date(u.createdAt).toLocaleDateString() }} · {{ roleLabel(u.role) }}
               </span>
             </div>
-            <BaseButton type="text" @click="openEdit(u)">编辑</BaseButton>
+            <BaseButton
+              v-if="u.role !== ROLE.OWNER && u.id !== auth.user.id"
+              type="text"
+              @click="openEdit(u)"
+            >
+              编辑
+            </BaseButton>
+            <span v-else class="au-item__locked">不可编辑</span>
           </BaseCard>
         </div>
       </section>
@@ -88,22 +102,24 @@ onMounted(load)
             <span class="au-field__label">角色</span>
             <div class="au-roles">
               <label
-                v-for="role in ['user', 'admin']"
+                v-for="role in roleOptions"
                 :key="role"
                 class="au-role"
-                :class="{ 'is-disabled': editing.id === auth.user.id && role === 'user' }"
+                :class="{ 'is-disabled': editing.id === auth.user.id }"
               >
                 <input
                   type="radio"
                   name="role"
                   :value="role"
                   v-model="draftRole"
-                  :disabled="editing.id === auth.user.id && role === 'user'"
+                  :disabled="editing.id === auth.user.id"
                 />
-                <span>{{ role === 'admin' ? '开发者' : '家庭成员' }}</span>
+                <span>{{ roleLabel(role) }}</span>
               </label>
             </div>
-            <p class="au-field__hint">账号与密码不可修改，仅可调整角色</p>
+            <p class="au-field__hint">
+              {{ editing.id === auth.user.id ? '不能修改自己的角色' : '账号与密码不可修改，仅可调整角色' }}
+            </p>
           </div>
 
           <div class="au-modal__actions">
@@ -163,6 +179,10 @@ onMounted(load)
 .au-item__meta {
   color: var(--muted);
   font-size: 12px;
+}
+.au-item__locked {
+  color: var(--muted);
+  font-size: 13px;
 }
 
 /* 编辑弹窗 */

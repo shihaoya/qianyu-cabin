@@ -102,7 +102,7 @@ server/
 | 1002 | 400 | 昵称已存在 | 注册 |
 | 1003 | 401 | 昵称或密码错误 | 登录 |
 | 1004 | 401 | 未登录/登录失效 | 鉴权中间件 |
-| 1005 | 403 | 无权限（非开发者） | requireAdmin 中间件 |
+| 1005 | 403 | 无权限（非管理角色） | requireAdmin 中间件（requireCap('manageUsers')） |
 | 1006 | 401 | 原密码不正确 | 修改密码 `POST /auth/change-password` |
 | 5000 | 500 | 服务端未知错误 | 错误中间件 |
 
@@ -157,9 +157,9 @@ node node_modules/prisma/build/index.js migrate dev --name <name>
 
 ### 13.1 角色模型（User.role）
 
-- 取值：`"user"`（普通用户）| `"admin"`（开发者）。默认 `"user"`（见 `schema.prisma`）。
+- 取值：`"user"`（用户）| `"admin"`（管理员（开发者））| `"owner"`（开发管理员（站长），仅本人）。默认 `"user"`（见 `schema.prisma`）。层级 `user < admin < owner`。
 - JWT 载荷携带 `role`，`auth` 中间件把 `req.user.role` 透传给下游；`publicUser` 在登录响应里一并返回 `role`。
-- 前端据此渲染入口：仅 `role === 'admin'` 显示「用户管理」，路由用 `requireAdmin` 守卫（见 `DEV-PC.md`/`DEV-MOBILE.md` 的路由章节）。
+- 角色与权限的**单一真源在 `src/permissions.js`**：`ROLE_RANK`（层级）、`CAP_ROLE`（能力→最低角色）、`can(user, cap)`（判定）。前端同样维护一份语义一致的 `permissions.js`。前端按 `can(user, 'manageUsers')` 渲染入口 / 守卫（见 `DEV-PC.md`/`DEV-MOBILE.md` 的路由章节）。
 - 改角色走 `userService.setRole`，不在此处做密码等敏感字段回显。
 
 ### 13.2 匿名留言板（Message）
@@ -171,10 +171,10 @@ node node_modules/prisma/build/index.js migrate dev --name <name>
 
 ### 13.3 仅开发者可见的用户管理
 
-- 双重拦截：前端路由守卫 `requireAdmin`（无 admin 角色直接跳首页/登录）+ 后端 `middleware/requireAdmin.js`（非 admin 返回 `1005`）。两端缺一会漏权限。
+- 双重拦截：前端路由守卫 `can(auth.user,'manageUsers')`（无权限直接跳首页）+ 后端 `middleware/requireAdmin.js`（= `requireCap('manageUsers')`，非管理角色返回 `1005`）。两端缺一会漏权限。
 - 列表 `GET /api/admin/users`：`userService.listUsers` 分页返回 `{ list, total }`，`select` 剔除 `passwordHash`。
-- 改角色 `PATCH /api/admin/users/:id/role`：`adminController` 调 `setRole`；**禁止把仅存的最后一个 admin 降级、并禁止把自己降级**（保持至少一名开发者），违例抛 `AppError(1005)`。
-- 提升某用户为开发者：用脚本（不连前端）`node scripts/promote-admin.mjs <昵称>`，仅开发期使用。
+- 改角色 `PATCH /api/admin/users/:id/role`：`adminController` 调 `setRole`；**禁止修改自己的角色**（避免锁死），且仅 `owner` 可把他人设为 `owner`，违例抛 `AppError(1005)`。
+- 提升账号：开发期脚本 `node scripts/promote-owner.js <昵称>`（把账号置为 `owner`），仅本人使用。
 
-> 权限边界是安全红线：任何新增的「管理类」接口都必须挂 `requireAdmin`，且前端对应入口/路由同步加 `isAdmin` 判断。
+> 权限边界是安全红线：任何新增的「管理类」接口都必须挂 `requireAdmin`（底层 `requireCap`，统一走 `permissions.can`），且前端对应入口/路由同步用 `can(user,'...')` 判断——**权限语言单一真源在 `src/permissions.js`**，新增能力先在 `CAP_ROLE` 登记。
 

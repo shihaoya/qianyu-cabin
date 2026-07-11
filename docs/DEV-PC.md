@@ -51,10 +51,10 @@ Props 必须声明类型；跨组件通信优先 props / emits，跨页面状态
 ## 4. 路由与守卫
 
 - 路由集中定义在 `router/index.js`，按需懒加载（`() => import(...)`）。
-- 登录态由 `stores/auth.js` 暴露两个 getter：`isLoggedIn`（`!!token`）、`isAdmin`（`user?.role === 'admin'`）。`role` 来自登录响应里的 `user`；刷新后 `user` 为 `null`，需在 `main.js`/`App.vue` 调 `fetchMe()` 重新拉取以恢复 `isAdmin`（token 仍在 `localStorage`，仅缺 `user`）。
+- 登录态由 `stores/auth.js` 暴露 `isLoggedIn`（`!!token`）。角色与权限判定集中在一处：`src/permissions.js` 定义角色层级 `ROLE_RANK`、能力 `CAP_ROLE` 与 `can(user, cap)` 工具；`role` 来自登录响应里的 `user`，刷新后 `user` 为 `null`，需在 `main.js`/`App.vue` 调 `fetchMe()` 重新拉取（token 仍在 `localStorage`，仅缺 `user`）。**任何权限判断都走 `can(auth.user, 'xxx')`，勿再写 `role === 'admin'` 之类的散落判断**。
 - 受保护路由加 `meta.requiresAuth = true`（登录拦截，未来新增需登录页时启用）；自定义守卫可扩展 `meta` 字段。
-- **开发者专属路由加 `meta.requiresAdmin = true`**：当前 `/admin/users` 即如此。全局前置守卫 `beforeEach` 中 `if (to.meta.requiresAdmin && !auth.isAdmin) return { name: 'home' }`——非开发者直接回退首页，**不弹 403、不暴露管理入口存在**。
-- **管理入口按 `isAdmin` 显隐（前端仅体验层，非安全边界）**：入口只在 `auth.isAdmin` 为 `true` 时渲染，不能只靠「点到了才拦截」。PC 端在 `AppHeader.vue` 用 `v-if="auth.isAdmin"` 渲染「用户管理」导航项；移动端在 `Home.vue` 互动区按 `v-if="auth.isAdmin"` 渲染「用户管理」入口（`BottomNav` 已弃用）。**两端入口都改后，后端 `requireAdmin` 中间件仍须兜底**（见 `DEV-SERVER.md` §13.3），缺一不可。
+- **权限路由加 `meta.cap`**：值为 `CAP_ROLE` 中登记的能力名（如 `manageUsers`）。全局前置守卫 `beforeEach` 中 `if (to.meta.cap && !can(auth.user, to.meta.cap)) return { name: 'home' }`——无权限直接回退首页，**不弹 403、不暴露入口存在**。
+- **管理入口按 `can(auth.user, 'manageUsers')` 显隐（前端仅体验层，非安全边界）**：入口只在具备该能力时渲染，不能只靠「点到了才拦截」。PC 端在 `AppHeader.vue` 用 `v-if="can(auth.user,'manageUsers')"` 渲染「用户管理」导航项；移动端在 `Home.vue` 互动区同理。**两端入口都改后，后端权限中间件仍须兜底**（见 `DEV-SERVER.md` §13.3），缺一不可。
 - 已登录访问 `/login` → 重定向首页。
 
 ## 5. 状态管理（Pinia）

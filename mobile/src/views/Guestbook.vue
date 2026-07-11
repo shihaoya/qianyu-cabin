@@ -1,6 +1,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useAuthStore } from '../stores/auth.js'
+import { can, CAP } from '../permissions.js'
 import { list as listMessages, create as createMessage, remove as removeMessage } from '../api/guestbook.js'
 import AppHeader from '../components/base/AppHeader.vue'
 import BaseButton from '../components/base/BaseButton.vue'
@@ -138,7 +139,7 @@ async function onSubmit() {
 }
 
 function canDelete(m) {
-  return auth.isLoggedIn && (auth.isAdmin || m.userId === auth.user?.id)
+  return auth.isLoggedIn && (can(auth.user, CAP.MANAGE_USERS) || m.userId === auth.user?.id)
 }
 
 async function onDelete(m) {

@@ -12,6 +12,7 @@ example: <AppHeader />
 <script setup>
 import { useRouter, useRoute, RouterLink } from 'vue-router'
 import { useAuthStore } from '../../stores/auth.js'
+import { can, CAP } from '../../permissions.js'
 import CabinLogo from './CabinLogo.vue'
 import BaseButton from './BaseButton.vue'
 import { confirm } from '../../composables/useConfirm.js'
@@ -63,12 +64,20 @@ function onLogout() {
           个人中心
         </RouterLink>
         <RouterLink
-          v-if="auth.isAdmin"
+          v-if="can(auth.user, CAP.MANAGE_USERS)"
           :to="{ name: 'admin-users' }"
           class="app-header__link"
           :class="{ 'is-active': isActive('admin-users') }"
         >
           用户管理
+        </RouterLink>
+        <RouterLink
+          v-if="can(auth.user, CAP.OWNER_TOOLS)"
+          :to="{ name: 'icon-studio' }"
+          class="app-header__link"
+          :class="{ 'is-active': isActive('icon-studio') }"
+        >
+          图标
         </RouterLink>
       </nav>
 

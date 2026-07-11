@@ -1,8 +1,7 @@
-import { listUsers, setRole } from '../services/userService.js'
+import { listUsers, setRole, getUserById } from '../services/userService.js'
 import { ERR } from '../utils/errors.js'
 import { sendOk } from '../utils/response.js'
-
-const ROLES = ['user', 'admin']
+import { isValidRole, can, ROLE, CAP } from '../permissions.js'
 
 export async function getUsers(req, res) {
   const page = Math.max(1, Number(req.query.page) || 1)
@@ -14,11 +13,20 @@ export async function getUsers(req, res) {
 export async function updateUserRole(req, res) {
   const id = Number(req.params.id)
   const { role } = req.body || {}
-  if (!ROLES.includes(role)) throw ERR.PARAM('角色不合法')
+  if (!isValidRole(role)) throw ERR.PARAM('角色不合法')
 
-  // 防止开发者把自己降级，导致再也无法管理
-  if (req.user.id === id && role !== 'admin') {
-    throw ERR.PARAM('不能修改自己的开发者身份')
+  // 不能修改自己的角色，避免锁死 / 误操作
+  if (req.user.id === id) throw ERR.PARAM('不能修改自己的角色')
+
+  const target = await getUserById(id)
+  // 只有开发管理员能修改开发管理员的角色，其余角色（含管理员）不得动开发管理员
+  if (target && target.role === ROLE.OWNER && !can(req.user, CAP.SET_OWNER)) {
+    throw ERR.FORBIDDEN('只有开发管理员可以修改开发管理员的角色')
+  }
+
+  // 只有开发管理员能把他人设为开发管理员
+  if (role === ROLE.OWNER && !can(req.user, CAP.SET_OWNER)) {
+    throw ERR.FORBIDDEN('只有开发管理员可以设置开发管理员')
   }
 
   const user = await setRole(id, role)

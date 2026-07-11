@@ -2,6 +2,7 @@
 import { reactive, ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth.js'
+import { roleLabel } from '../permissions.js'
 import { changePassword as apiChangePassword } from '../api/auth.js'
 import { alert } from '../composables/useConfirm.js'
 import BaseCard from '../components/base/BaseCard.vue'
@@ -63,7 +64,7 @@ async function onSubmit() {
         </div>
         <div class="settings__row">
           <span class="settings__label">角色</span>
-          <span class="settings__value">{{ auth.user?.role === 'admin' ? '开发者' : '家庭成员' }}</span>
+          <span class="settings__value">{{ roleLabel(auth.user?.role) }}</span>
         </div>
       </BaseCard>
 

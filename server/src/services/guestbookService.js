@@ -1,5 +1,6 @@
 import { prisma } from '../db/index.js'
 import { ERR } from '../utils/errors.js'
+import { can, CAP } from '../permissions.js'
 
 const MAX_LEN = 500
 
@@ -8,7 +9,7 @@ const MAX_LEN = 500
 export async function listMessages(user) {
   if (!user) return []
   const where =
-    user.role === 'admin' ? { deletedAt: null } : { userId: user.id, deletedAt: null }
+    can(user, CAP.MANAGE_USERS) ? { deletedAt: null } : { userId: user.id, deletedAt: null }
   return prisma.message.findMany({
     where,
     orderBy: { createdAt: 'desc' },
@@ -55,7 +56,7 @@ export async function createMessage({ content, anonymous, user }) {
 export async function removeMessage({ id, user }) {
   const message = await prisma.message.findUnique({ where: { id } })
   if (!message || message.deletedAt) return { id, deleted: false }
-  if (user.role !== 'admin' && message.userId !== user.id) {
+  if (!can(user, CAP.MANAGE_USERS) && message.userId !== user.id) {
     throw ERR.FORBIDDEN('只能删除自己的留言')
   }
   await prisma.message.update({ where: { id }, data: { deletedAt: new Date() } })

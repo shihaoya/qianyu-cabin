@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '../stores/auth.js'
+import { can, CAP } from '../permissions.js'
 
 const routes = [
   { path: '/', name: 'home', component: () => import('../views/Home.vue') },
@@ -9,8 +10,14 @@ const routes = [
   {
     path: '/admin/users',
     name: 'admin-users',
-    meta: { requiresAdmin: true },
+    meta: { cap: CAP.MANAGE_USERS },
     component: () => import('../views/AdminUsers.vue'),
+  },
+  {
+    path: '/icon-studio',
+    name: 'icon-studio',
+    meta: { cap: CAP.OWNER_TOOLS },
+    component: () => import('../views/IconStudio.vue'),
   },
   { path: '/:pathMatch(.*)*', name: 'not-found', component: () => import('../views/NotFound.vue') },
 ]
@@ -23,7 +30,7 @@ const router = createRouter({
 router.beforeEach((to) => {
   const auth = useAuthStore()
   if (to.name === 'login' && auth.isLoggedIn) return { name: 'home' }
-  if (to.meta.requiresAdmin && !auth.isAdmin) return { name: 'home' }
+  if (to.meta.cap && !can(auth.user, to.meta.cap)) return { name: 'home' }
 })
 
 export default router

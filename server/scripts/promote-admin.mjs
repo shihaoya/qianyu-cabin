@@ -2,6 +2,7 @@
 // 用法：node scripts/promote-admin.mjs <昵称>
 import 'dotenv/config'
 import { PrismaClient } from '@prisma/client'
+import { ROLE, roleLabel } from '../src/permissions.js'
 
 const nickname = process.argv[2]
 if (!nickname) {
@@ -16,6 +17,6 @@ if (!user) {
   process.exit(1)
 }
 
-await prisma.user.update({ where: { id: user.id }, data: { role: 'admin' } })
-console.log(`已将 ${nickname} 设为开发者（admin）。`)
+await prisma.user.update({ where: { id: user.id }, data: { role: ROLE.ADMIN } })
+console.log(`已将 ${nickname} 设为 ${roleLabel(ROLE.ADMIN)}（${ROLE.ADMIN}）。`)
 await prisma.$disconnect()

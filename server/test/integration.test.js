@@ -6,6 +6,7 @@ import { execSync } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { ROLE } from '../src/permissions.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const root = path.resolve(__dirname, '..')
@@ -58,16 +59,19 @@ test('guestbook: 登录用户留言记录昵称与 userId', async () => {
 })
 
 test('guestbook: 列表按时间倒序返回且含已写留言', async () => {
-  const list = await guestbook.listMessages()
+  // 匿名看不到任何留言；用具备 manageUsers 的 admin 才能查看全部
+  const admin = await userService.register(`__it_admin_${Date.now()}`, 'pw123456')
+  const adminUser = await userService.setRole(admin.id, ROLE.ADMIN)
+  const list = await guestbook.listMessages(adminUser)
   assert.ok(Array.isArray(list))
   assert.ok(list.length >= 2)
 })
 
 test('admin: 角色可调整为 admin 并在用户列表中体现', async () => {
   const user = await userService.register(`__it2_${Date.now()}`, 'pw123456')
-  await userService.setRole(user.id, 'admin')
+  await userService.setRole(user.id, ROLE.ADMIN)
   const updated = await userService.getUserById(user.id)
-  assert.equal(updated.role, 'admin')
+  assert.equal(updated.role, ROLE.ADMIN)
   const { list } = await userService.listUsers({ page: 1, pageSize: 50 })
-  assert.ok(list.some((u) => u.id === user.id && u.role === 'admin'))
+  assert.ok(list.some((u) => u.id === user.id && u.role === ROLE.ADMIN))
 })

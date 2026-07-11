@@ -8,7 +8,7 @@ export const useAuthStore = defineStore('auth', {
   }),
   getters: {
     isLoggedIn: (state) => !!state.token,
-    isAdmin: (state) => state.user?.role === 'admin',
+    // 权限判断统一走 permissions.can()，见 src/permissions.js
   },
   actions: {
     async login(nickname, password) {

@@ -1,6 +1,7 @@
 <script setup>
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth.js'
+import { can, CAP } from '../permissions.js'
 import GameArea from '../components/GameArea.vue'
 import CabinLogo from '../components/base/CabinLogo.vue'
 import CabinScene from '../components/base/CabinScene.vue'
@@ -80,7 +81,7 @@ function onLogout() {
         </div>
       </section>
 
-      <section v-if="auth.isAdmin" class="block qy-rise" style="animation-delay:.16s">
+      <section v-if="can(auth.user, CAP.MANAGE_USERS)" class="block qy-rise" style="animation-delay:.16s">
         <div class="block__head">
           <h2 class="block__title">管理区</h2>
           <p class="block__sub">只有你能看到的小屋后台</p>

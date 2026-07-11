@@ -11,7 +11,7 @@ model User {
   id           Int      @id @default(autoincrement())
   nickname     String   @unique
   passwordHash String
-  role         String   @default("user") // "user" 普通用户 | "admin" 开发者
+  role         String   @default("user") // "user" 用户 | "admin" 管理员（开发者）| "owner" 开发管理员（站长）（仅本人）
   createdAt    DateTime @default(now())
 }
 
