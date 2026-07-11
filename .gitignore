@@ -5,10 +5,10 @@ node_modules/
 dist/
 build/
 
-# 环境变量（保留示例文件）
+# 环境变量（Vite 标准：仅忽略本地/保密文件，环境分层文件入库）
 .env
-.env.*
-!.env.example
+.env.local
+.env.*.local
 
 # 数据库（SQLite）
 *.db

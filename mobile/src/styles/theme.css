@@ -1,0 +1,23 @@
+:root {
+  --bg: #f7f1e3;
+  --surface: #fffdf8;
+  --primary: #c9743b;
+  --primary-soft: #f0dcb8;
+  --text: #3a322a;
+  --muted: #8a7d6b;
+  --accent: #5b8c7b;
+  --radius: 14px;
+  --shadow: 0 6px 20px rgba(120, 90, 50, .12);
+  --font: "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--text);
+}

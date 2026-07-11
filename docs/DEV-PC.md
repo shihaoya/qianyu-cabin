@@ -62,7 +62,7 @@ Props 必须声明类型；跨组件通信优先 props / emits，跨页面状态
 
 ## 6. API 客户端
 
-- `api/request.js` 创建 axios 实例：`baseURL` 为 `/server/api`，`withCredentials: false`。
+- `api/request.js` 创建 axios 实例：`baseURL` 为 `import.meta.env.VITE_API_BASE || '/server/api'`（`VITE_API_BASE` 来自环境变量，见第 11 节；默认相对路径，由 Vite 代理 / nginx 反代转发到后端），`withCredentials: false`。
 - 请求拦截器：自动附加 `Authorization: Bearer <token>`。
 - 响应拦截器：按 `{ code, data, message }` 解包；`code !== 0` 抛出含 `message` 的错误；HTTP 401 清 token 并跳登录。
 - 每个资源一个封装文件（如 `api/auth.js`），页面/store 只调用封装函数，不直接用 axios。
@@ -102,3 +102,26 @@ Props 必须声明类型；跨组件通信优先 props / emits，跨页面状态
 
 - 开发：`pnpm dev`；Vite 代理 `/server` → `http://localhost:3000`（见 `vite.config.js` 的 `server.proxy`）。
 - 生产：`pnpm build` 产物在 `pc/dist`，部署见 `DEPLOYMENT.md`。
+
+## 11. 环境变量分层
+
+所有可配置项（端口、后端地址、API 基地址）一律进环境变量，**不写死在代码 / config**。Vite 按 `mode` 自动加载，优先级 `.env.[mode]` > `.env`：
+
+| 文件 | 加载时机 | 入库 | 用途 |
+|---|---|---|---|
+| `.env.example` | - | ✅ | 模板，复制为其它文件使用 |
+| `.env` | 始终 | ❌ | 本地个人覆盖（`.gitignore` 忽略） |
+| `.env.development` | `pnpm dev` | ✅ | 开发：`DEV_PORT`、`API_TARGET`、`VITE_API_BASE` |
+| `.env.production` | `pnpm build` | ✅ | 生产打包：`VITE_API_BASE` |
+| `.env.preview` | `pnpm preview` | ✅ | 预览：`VITE_API_BASE` |
+
+变量含义：
+- `DEV_PORT`：Vite 开发服务器端口（仅 dev 用），PC 默认 `5173`；`strictPort: true`，被占用直接报错不漂移。
+- `API_TARGET`：开发时代理转发到的后端地址（`vite.config.js` 的 `server.proxy` 目标），默认 `http://localhost:3000`。
+- `VITE_API_BASE`：注入前端 bundle 的 API 基地址（需 `VITE_` 前缀），默认 `/server/api`；部署到独立域名后端时改为绝对地址（如 `https://api.example.com/server/api`）。
+
+打包到不同部署环境：
+- `pnpm build` → 用 `.env.production`；
+- 需更多环境（如 staging）时，新建 `.env.staging` 并 `pnpm build --mode staging`。
+
+`.gitignore` 已按 Vite 标准忽略 `.env` / `.env.local` / `.env.*.local`，上述分层文件均入库。

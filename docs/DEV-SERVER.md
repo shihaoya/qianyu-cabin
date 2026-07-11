@@ -1,7 +1,8 @@
 # 服务端开发规范
 
-> 适用范围：`server/` 项目。架构决策见 `ARCHITECTURE.md`。当前仅有 `package.json`（pnpm，ESM），依赖未安装；开发时通过 `pnpm add` 补充（Express、Prisma、jsonwebtoken、bcryptjs、dotenv 等）。
+> 适用范围：`server/` 项目。架构决策见 `ARCHITECTURE.md`。已落地：Express + Prisma(SQLite v6) + JWT，分层 `routes→controllers→services→db`，含统一响应/错误码/`auth` 中间件、`User` 表（已 migrate）。
 > 本规范用于保证后端分层清晰、响应一致、错误可预期，便于 PC/移动端对接。
+> 注意：Prisma 固定 **v6**（v7 改了 schema 规则、需 TS config + adapter，对单体 SQLite 过重，不使用）。
 
 ## 1. 目录结构
 
@@ -69,6 +70,7 @@ server/
 - 所有运行参数经 `dotenv` 载入，由 `config/index.js` 集中读取与启动校验（缺失关键项则启动失败并打印明确信息）。
 - 必要项：`PORT`（默认 3000）、`JWT_SECRET`、`JWT_EXPIRES_IN`、`DATABASE_URL`（Prisma 用）。
 - 不在代码中写死端口、密钥、路径。
+- 环境变量文件：`.env`（含密钥，**不入库**，已被 `.gitignore` 忽略）；提供 `.env.example` 作为模板（入库）。生产部署通过平台环境变量注入或该 `.env` 提供，绝不把 `JWT_SECRET` 等提交到仓库。
 
 ## 8. Prisma 使用
 
@@ -103,3 +105,39 @@ server/
 - 迁移：`pnpm prisma migrate deploy`（生产）/ `prisma migrate dev`（开发）。
 - 生产：守护进程运行 `src/server.js`（pm2 / systemd），经 nginx 反代（见 `DEPLOYMENT.md`）。
 - 启动自检：配置缺失则退出并提示；`prisma generate` 应在部署脚本中执行。
+
+## 12. 排错（pnpm 与 Prisma 构建脚本）
+
+**问题**：pnpm 11 在执行任何 `pnpm <命令>`（如 `pnpm dev`、`pnpm prisma ...`）前会跑依赖校验，默认**禁止 `@prisma/client` 的构建脚本**，导致校验直接失败、命令起不来。此问题在 Prisma v6 下出现。
+
+**已落地解法（推荐）**：在 `server/pnpm-workspace.yaml` 加构建白名单，pnpm 11 即可放行 Prisma 的构建脚本：
+
+```yaml
+onlyBuiltDependencies:
+  - "@prisma/client"
+  - "@prisma/engines"
+  - "prisma"
+```
+
+加完后正常用法恢复：
+
+```bash
+cd server
+pnpm install            # 批准后即放行 Prisma 构建
+pnpm dev                # node --watch src/server.js
+pnpm prisma generate
+pnpm prisma migrate dev --name <name>
+```
+
+**应急绕过（白名单未生效时）**：直接用 `node` 调 Prisma CLI，跳过 pnpm 包装器：
+
+```bash
+cd server
+node node_modules/prisma/build/index.js generate
+node node_modules/prisma/build/index.js migrate dev --name <name>
+```
+
+**其它约定**：
+- 切勿改用 `pnpm approve-builds` 手批——它会交互、不利于非交互部署；以 `pnpm-workspace.yaml` 白名单为准。
+- `.npmrc` 的 `dangerously-allow-all-builds` 在本机 pnpm 11 下仍被 `verify-deps-before-run` 拦截，不可靠，不要用。
+- 数据库文件 `*.db` 在 `.gitignore` 已忽略；`prisma/schema.prisma` 与 `prisma/migrations/` 需入库。

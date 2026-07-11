@@ -1,7 +1,20 @@
 <script setup>
-import HelloWorld from './components/HelloWorld.vue'
+import { onMounted } from 'vue'
+import { useAuthStore } from './stores/auth.js'
+
+const auth = useAuthStore()
+
+onMounted(async () => {
+  if (auth.token) {
+    try {
+      await auth.fetchMe()
+    } catch {
+      auth.logout()
+    }
+  }
+})
 </script>
 
 <template>
-  <HelloWorld />
+  <router-view />
 </template>
