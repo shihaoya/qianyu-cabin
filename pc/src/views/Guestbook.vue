@@ -4,7 +4,7 @@ import { useAuthStore } from '../stores/auth.js'
 import { list as listMessages, create as createMessage, remove as removeMessage } from '../api/guestbook.js'
 import AppHeader from '../components/base/AppHeader.vue'
 import BaseButton from '../components/base/BaseButton.vue'
-import { confirm } from '../composables/useConfirm.js'
+import { confirm, alert } from '../composables/useConfirm.js'
 
 const auth = useAuthStore()
 const messages = ref([])
@@ -26,35 +26,7 @@ function formatTime(t) {
 
 const NOTE_COLORS = ['#c9743b', '#5b8c7b', '#d99a4e', '#b5673f', '#7a9b6e', '#cf8a5b', '#a9744f']
 
-// 每张便签的倾斜角（度），按序号循环取，模拟随手贴的随机感
-const NOTE_ANGLES = [-4, 3, -2.5, 4, -3.5, 2.5, -4.5, 3.5]
-function noteAngle(i) {
-  return NOTE_ANGLES[i % NOTE_ANGLES.length]
-}
-
-// 昵称便签的位置/角度（基于序号，刷新后稳定不跳变）
-const NAME_LEFT = [20, 14, 28, 18, 24, 12, 22, 16]
-const NAME_TOP = [-15, -12, -18, -13, -16, -11, -14, -19]
-const NAME_ROT = [-3, -5, -2, -4, -6, -3, -5, -2]
-// 卡片整体的错位与宽幅，打破规整网格感
-const CARD_SHIFT = [0, 12, 5, 16, 8, 0, 14, 6]
-function nameLeft(i) { return NAME_LEFT[i % NAME_LEFT.length] }
-function nameTop(i) { return NAME_TOP[i % NAME_TOP.length] }
-function nameRot(i) { return NAME_ROT[i % NAME_ROT.length] }
-function cardShift(i) { return CARD_SHIFT[i % CARD_SHIFT.length] }
-function contentLen(m) { return (m.content || '').length }
-// 卡片宽度由内容长度决定（内容多→更宽），再叠加按序号的微抖动，避免“长内容配小框”
-function cardWidth(m, i) {
-  const base = 230 + Math.min(contentLen(m), 220) * 0.85
-  const jitter = [0, 14, -10, 18, -6, 8, -14, 12][i % 8]
-  return Math.max(200, Math.round(base + jitter))
-}
-// 内容越长，行内占比（flex-grow）越大，避免内容少却占大框
-function cardGrow(m) {
-  return +(0.7 + Math.min(contentLen(m), 260) / 260 * 0.9).toFixed(2)
-}
-
-// 用户名便签底色：具名按昵称 hash 取暖色板；匿名用深暖灰（白字可读）
+// 头像/色条底色：具名按昵称 hash 取暖色板；匿名用深暖灰（白字可读）
 function noteColor(m) {
   if (m.isAnonymous || !m.nickname) return '#9c8e76'
   let h = 0
@@ -64,6 +36,45 @@ function noteColor(m) {
 
 function displayName(m) {
   return m.isAnonymous || !m.nickname ? '匿名旅人' : m.nickname
+}
+
+// 头像首字：取昵称首个字符（中英文均可），匿名用「旅」
+function avatarText(m) {
+  if (m.isAnonymous || !m.nickname) return '旅'
+  return [...m.nickname][0]
+}
+
+// 卡片正文最多展示 50 字，超出显示省略号，点「查看」弹框看全文
+const PREVIEW_LEN = 50
+function previewContent(m) {
+  const text = m.content || ''
+  if ([...text].length > PREVIEW_LEN) return [...text].slice(0, PREVIEW_LEN).join('') + '…'
+  return text
+}
+function onView(m) {
+  alert({ title: displayName(m), message: m.content })
+}
+
+// 复制留言内容，复制成功后在该卡片短暂显示「已复制」
+const copiedId = ref(null)
+let copyTimer = null
+async function onCopy(m) {
+  try {
+    await navigator.clipboard.writeText(m.content)
+  } catch {
+    // 兜底：不支持 clipboard API 时用临时 textarea
+    const ta = document.createElement('textarea')
+    ta.value = m.content
+    ta.style.position = 'fixed'
+    ta.style.opacity = '0'
+    document.body.appendChild(ta)
+    ta.select()
+    try { document.execCommand('copy') } catch { /* ignore */ }
+    document.body.removeChild(ta)
+  }
+  copiedId.value = m.id
+  clearTimeout(copyTimer)
+  copyTimer = setTimeout(() => { copiedId.value = null }, 1500)
 }
 
 // 中文相对时间，鼠标悬停仍可见完整时间（title）
@@ -137,6 +148,9 @@ onMounted(load)
           maxlength="500"
           placeholder="写下你的留言…"
         />
+        <div class="gb-count" :class="{ 'gb-count--full': content.length >= 500 }">
+          {{ content.length }} / 500
+        </div>
         <div class="gb-actions">
           <label v-if="auth.isLoggedIn" class="gb-anon">
             <input type="checkbox" v-model="anonymous" /> 匿名发布（不记录信息）
@@ -155,19 +169,27 @@ onMounted(load)
           v-for="(m, i) in messages"
           :key="m.id"
           class="gb-note"
-          :style="{
-            '--rot': noteAngle(i) + 'deg',
-            '--name-rot': nameRot(i) + 'deg',
-            marginTop: cardShift(i) + 'px',
-            flex: cardGrow(m) + ' 1 ' + cardWidth(m, i) + 'px',
-            animationDelay: i * 0.04 + 's',
-          }"
+          :style="{ '--accent': noteColor(m), animationDelay: i * 0.04 + 's' }"
         >
-          <span class="gb-note__name" :style="{ background: noteColor(m), left: nameLeft(i) + 'px', top: nameTop(i) + 'px' }">{{ displayName(m) }}</span>
-          <p class="gb-note__content">{{ m.content }}</p>
+          <header class="gb-note__head">
+            <span class="gb-note__avatar" :style="{ background: noteColor(m) }">{{ avatarText(m) }}</span>
+            <span class="gb-note__name">{{ displayName(m) }}</span>
+          </header>
+          <p class="gb-note__content">{{ previewContent(m) }}</p>
+          <button
+            v-if="[...m.content].length > PREVIEW_LEN"
+            type="button"
+            class="gb-act gb-act--more"
+            @click="onView(m)"
+          >查看</button>
           <div class="gb-note__foot">
             <span class="gb-note__time" :title="formatTime(m.createdAt)">{{ fromNow(m.createdAt) }}</span>
-            <button v-if="canDelete(m)" type="button" class="gb-del" @click="onDelete(m)">删除</button>
+            <div class="gb-note__acts">
+              <button type="button" class="gb-act" @click="onCopy(m)">
+                {{ copiedId === m.id ? '已复制' : '复制' }}
+              </button>
+              <button v-if="canDelete(m)" type="button" class="gb-act gb-act--del" @click="onDelete(m)">删除</button>
+            </div>
           </div>
         </article>
       </section>
@@ -248,12 +270,25 @@ onMounted(load)
   color: #d9534f;
   font-size: 13px;
 }
+.gb-count {
+  margin-top: 6px;
+  text-align: right;
+  color: var(--muted);
+  font-size: 12px;
+}
+.gb-count--full {
+  color: var(--primary);
+}
 .gb-list {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  gap: 34px 18px;
+  column-count: 3;
+  column-gap: 20px;
   margin-top: 28px;
+}
+@media (max-width: 980px) {
+  .gb-list { column-count: 2; }
+}
+@media (max-width: 620px) {
+  .gb-list { column-count: 1; }
 }
 .gb-empty {
   text-align: center;
@@ -262,57 +297,47 @@ onMounted(load)
   padding: 24px 0;
 }
 .gb-note {
-  position: relative;
-  --rot: -1.2deg;
-  flex: 1 1 280px;
+  break-inside: avoid;
+  display: inline-block;
+  width: 100%;
+  margin-bottom: 20px;
   background: var(--surface);
   border-radius: var(--radius);
+  border-left: 4px solid var(--accent, var(--primary));
   box-shadow: var(--shadow);
-  padding: 28px 22px 16px;
-  transform: rotate(var(--rot));
+  padding: 18px 20px 14px;
   transition: transform 0.18s ease, box-shadow 0.18s ease;
   animation: gb-fade 0.5s ease both;
 }
 .gb-note:hover {
-  transform: rotate(0deg) translateY(-4px);
+  transform: translateY(-4px);
   box-shadow: 0 12px 28px rgba(120, 90, 50, 0.18);
 }
-.gb-note:hover .gb-note__name {
-  transform: rotate(0deg);
+.gb-note__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.gb-note__avatar {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  font-family: var(--font-display);
+  font-size: 16px;
+  line-height: 1;
 }
 .gb-note__name {
-  position: absolute;
-  top: -15px;
-  left: 20px;
-  z-index: 2;
   font-family: var(--font-display);
-  font-size: 14px;
-  color: #fff;
-  padding: 5px 14px;
-  border-radius: 7px;
-  transform: rotate(var(--name-rot, -3deg));
-  box-shadow: 0 3px 9px rgba(120, 90, 50, 0.22);
+  font-size: 15px;
+  color: var(--text);
   white-space: nowrap;
-  max-width: calc(100% - 40px);
   overflow: hidden;
   text-overflow: ellipsis;
-  transition: transform 0.18s ease;
-}
-.gb-note__name::before {
-  content: "";
-  position: absolute;
-  top: -6px;
-  left: 50%;
-  width: 32px;
-  height: 11px;
-  transform: translateX(-50%) rotate(5deg);
-  background: rgba(255, 255, 255, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.75);
-  border-radius: 2px;
-}
-.gb-note__time {
-  color: var(--muted);
-  font-size: 12px;
 }
 .gb-note__content {
   margin: 0;
@@ -326,9 +351,20 @@ onMounted(load)
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  margin-top: 12px;
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--primary-soft);
 }
-.gb-del {
+.gb-note__time {
+  color: var(--muted);
+  font-size: 12px;
+}
+.gb-note__acts {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.gb-act {
   border: none;
   background: transparent;
   color: var(--muted);
@@ -339,11 +375,26 @@ onMounted(load)
   border-radius: 8px;
   transition: color 0.15s ease, background 0.15s ease;
 }
-.gb-del:hover {
+.gb-act:hover {
+  color: var(--primary);
+  background: rgba(201, 116, 59, 0.10);
+}
+.gb-act--del:hover {
   color: #d9534f;
   background: rgba(217, 83, 79, 0.10);
 }
-.gb-del:focus-visible {
+.gb-act--more {
+  display: block;
+  margin-top: 12px;
+  padding: 5px 14px;
+  border: 1px solid var(--primary-soft);
+  color: var(--primary);
+  font-size: 13px;
+}
+.gb-act--more:hover {
+  background: rgba(201, 116, 59, 0.10);
+}
+.gb-act:focus-visible {
   outline: 2px solid var(--primary);
   outline-offset: 2px;
 }

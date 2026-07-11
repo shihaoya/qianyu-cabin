@@ -34,7 +34,10 @@ const { isOpen, mode, title, message, confirmText, cancelText, onOk, onCancel } 
   box-sizing: border-box;
 }
 .cd-box {
-  width: min(90vw, 340px);
+  width: min(92vw, 560px);
+  max-height: 82vh;
+  display: flex;
+  flex-direction: column;
   background: var(--surface);
   border-radius: var(--radius);
   box-shadow: 0 20px 50px rgba(90, 60, 30, 0.3);
@@ -54,10 +57,15 @@ const { isOpen, mode, title, message, confirmText, cancelText, onOk, onCancel } 
   line-height: 1.7;
   white-space: pre-wrap;
   word-break: break-word;
+  text-align: left;
+  overflow-y: auto;
+  flex: 1 1 auto;
+  min-height: 0;
 }
 .cd-actions {
   display: flex;
   gap: 12px;
+  flex: none;
 }
 .cd-btn {
   flex: 1;

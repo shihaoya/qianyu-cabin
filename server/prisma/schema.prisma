@@ -16,10 +16,11 @@ model User {
 }
 
 model Message {
-  id          Int      @id @default(autoincrement())
+  id          Int       @id @default(autoincrement())
   content     String
-  isAnonymous Boolean  @default(false)
+  isAnonymous Boolean   @default(false)
   userId      Int?
   nickname    String?
-  createdAt   DateTime @default(now())
+  createdAt   DateTime  @default(now())
+  deletedAt   DateTime? // 逻辑删除标记：为空表示未删除，有值表示已删除的时间
 }
