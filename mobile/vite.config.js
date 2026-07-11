@@ -13,6 +13,7 @@ export default defineConfig(({ mode }) => {
         '/server': {
           target: env.API_TARGET || 'http://localhost:3000',
           changeOrigin: true,
+          rewrite: (path) => path.replace(/^\/server/, ''),
         },
       },
     },

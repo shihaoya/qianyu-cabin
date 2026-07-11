@@ -100,7 +100,7 @@ Props 必须声明类型；跨组件通信优先 props / emits，跨页面状态
 
 ## 10. 构建与代理
 
-- 开发：`pnpm dev`；Vite 代理 `/server` → `http://localhost:3000`（见 `vite.config.js` 的 `server.proxy`）。
+- 开发：`pnpm dev`；Vite 代理 `/server` → 后端（见 `vite.config.js` 的 `server.proxy`，含 `rewrite` 去除 `/server` 前缀，转发为 `/api/...`，与生产 nginx `location /server/` 的 strip 行为一致，避免 dev 下 404）。
 - 生产：`pnpm build` 产物在 `pc/dist`，部署见 `DEPLOYMENT.md`。
 
 ## 11. 环境变量分层
