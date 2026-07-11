@@ -11,3 +11,7 @@ export function login(nickname, password) {
 export function me() {
   return api.get('/auth/me')
 }
+
+export function changePassword(currentPassword, newPassword) {
+  return api.post('/auth/change-password', { currentPassword, newPassword })
+}

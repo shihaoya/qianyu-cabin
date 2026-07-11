@@ -12,4 +12,5 @@ export const ERR = {
   BAD_CREDENTIALS: (message = '昵称或密码错误') => new AppError(1003, message, 401),
   UNAUTHENTICATED: (message = '未登录或登录失效') => new AppError(1004, message, 401),
   FORBIDDEN: (message = '无权访问') => new AppError(1005, message, 403),
+  OLD_PWD_WRONG: (message = '原密码不正确') => new AppError(1006, message, 401),
 }

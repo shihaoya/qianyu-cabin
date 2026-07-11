@@ -20,6 +20,7 @@ const props = defineProps({
   title: { type: String, required: true },
   desc: { type: String, default: '' },
   arrow: { type: Boolean, default: true },
+  tile: { type: Boolean, default: false },
 })
 const emit = defineEmits(['select'])
 
@@ -34,6 +35,7 @@ function handleClick() {
     :to="to || undefined"
     :type="to ? undefined : 'button'"
     class="entry-card"
+    :class="{ 'entry-card--tile': tile }"
     @click="handleClick"
   >
     <span class="entry-card__icon"><GameIcon :type="icon" :size="iconSize" /></span>
@@ -107,5 +109,34 @@ function handleClick() {
   color: var(--muted);
   line-height: 1;
   flex-shrink: 0;
+}
+/* 宫格模式：图标在上、文字居中，适合首页功能广场并排铺排 */
+.entry-card--tile {
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 9px;
+  padding: 24px 18px;
+}
+.entry-card--tile .entry-card__icon {
+  width: 64px;
+  height: 64px;
+  background: var(--primary-soft);
+}
+.entry-card--tile .entry-card__icon :deep(.game-icon) {
+  width: 38px;
+  height: 38px;
+}
+.entry-card--tile .entry-card__body {
+  align-items: center;
+}
+.entry-card--tile .entry-card__title {
+  font-size: 17px;
+}
+.entry-card--tile .entry-card__desc {
+  max-width: 16em;
+}
+.entry-card--tile .entry-card__arrow {
+  display: none;
 }
 </style>

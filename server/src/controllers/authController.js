@@ -1,6 +1,6 @@
 import jwt from 'jsonwebtoken'
 import { config } from '../config/index.js'
-import { register, verifyCredentials, getUserById } from '../services/userService.js'
+import { register, verifyCredentials, getUserById, changePassword as changeUserPassword } from '../services/userService.js'
 import { ERR } from '../utils/errors.js'
 import { sendOk } from '../utils/response.js'
 
@@ -37,4 +37,11 @@ export async function me(req, res) {
   const user = await getUserById(req.user.id)
   if (!user) throw ERR.UNAUTHENTICATED()
   return sendOk(res, { user: publicUser(user) })
+}
+
+export async function changePassword(req, res) {
+  const { currentPassword, newPassword } = req.body || {}
+  if (!currentPassword || !newPassword) throw ERR.PARAM('原密码和新密码必填')
+  await changeUserPassword(req.user.id, currentPassword, newPassword)
+  return sendOk(res, null, '密码修改成功')
 }

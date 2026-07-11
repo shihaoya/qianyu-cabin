@@ -14,6 +14,7 @@ import { useRouter, useRoute, RouterLink } from 'vue-router'
 import { useAuthStore } from '../../stores/auth.js'
 import CabinLogo from './CabinLogo.vue'
 import BaseButton from './BaseButton.vue'
+import { confirm } from '../../composables/useConfirm.js'
 
 const router = useRouter()
 const route = useRoute()
@@ -26,6 +27,12 @@ const nav = [
 
 function isActive(name) {
   return route.name === name
+}
+
+function onLogout() {
+  confirm({ title: '退出登录', message: '确定要退出登录吗？' }).then((ok) => {
+    if (ok) auth.logout()
+  })
 }
 </script>
 
@@ -48,6 +55,14 @@ function isActive(name) {
           {{ item.label }}
         </RouterLink>
         <RouterLink
+          v-if="auth.isLoggedIn"
+          :to="{ name: 'profile' }"
+          class="app-header__link"
+          :class="{ 'is-active': isActive('profile') }"
+        >
+          个人中心
+        </RouterLink>
+        <RouterLink
           v-if="auth.isAdmin"
           :to="{ name: 'admin-users' }"
           class="app-header__link"
@@ -60,7 +75,7 @@ function isActive(name) {
       <div class="app-header__user">
         <template v-if="auth.isLoggedIn">
           <span class="app-header__nick">你好，{{ auth.user?.nickname }}</span>
-          <BaseButton type="text" @click="auth.logout()">退出</BaseButton>
+          <BaseButton type="text" @click="onLogout">退出</BaseButton>
         </template>
         <BaseButton v-else type="primary" @click="router.push('/login')">登录</BaseButton>
       </div>

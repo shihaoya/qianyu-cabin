@@ -19,10 +19,11 @@ const emit = defineEmits(['select'])
 </script>
 
 <template>
-  <div class="game-list">
+  <div class="tile-grid">
     <EntryCard
       v-for="game in games"
       :key="game.id"
+      tile
       :icon="game.icon"
       :title="game.name"
       desc="进去玩玩 ~"
@@ -32,9 +33,9 @@ const emit = defineEmits(['select'])
 </template>
 
 <style scoped>
-.game-list {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+.tile-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 16px;
 }
 </style>

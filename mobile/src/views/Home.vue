@@ -6,7 +6,8 @@ import CabinLogo from '../components/base/CabinLogo.vue'
 import CabinScene from '../components/base/CabinScene.vue'
 import BaseButton from '../components/base/BaseButton.vue'
 import EntryCard from '../components/base/EntryCard.vue'
-import { alert } from '../composables/useConfirm.js'
+import { alert, confirm } from '../composables/useConfirm.js'
+import TabBar from '../components/base/TabBar.vue'
 
 const router = useRouter()
 const auth = useAuthStore()
@@ -22,6 +23,12 @@ async function onPlay(game) {
   }
   await alert({ title: '提示', message: `${game.name} 功能开发中~` })
 }
+
+function onLogout() {
+  confirm({ title: '退出登录', message: '确定要退出登录吗？' }).then((ok) => {
+    if (ok) auth.logout()
+  })
+}
 </script>
 
 <template>
@@ -31,10 +38,15 @@ async function onPlay(game) {
         <CabinLogo :size="28" />
         <span class="home__brand-name">千羽的小屋</span>
       </div>
-      <BaseButton v-if="!auth.isLoggedIn" type="primary" @click="router.push('/login')">
-        登录
-      </BaseButton>
-      <span v-else class="home__nick">{{ auth.user?.nickname }}</span>
+      <template v-if="!auth.isLoggedIn">
+        <BaseButton type="primary" @click="router.push('/login')">登录</BaseButton>
+      </template>
+      <template v-else>
+        <div class="home__user">
+          <span class="home__nick">{{ auth.user?.nickname }}</span>
+          <BaseButton type="text" @click="onLogout">退出</BaseButton>
+        </div>
+      </template>
     </header>
 
     <main class="home__main">
@@ -92,12 +104,13 @@ async function onPlay(game) {
         </div>
       </section>
     </main>
+    <TabBar />
   </div>
 </template>
 
 <style scoped>
 .home {
-  padding: 0 16px 32px;
+  padding: 0 16px 84px;
 }
 .home__header {
   position: sticky;
@@ -126,6 +139,11 @@ async function onPlay(game) {
 .home__nick {
   color: var(--muted);
   font-size: 14px;
+}
+.home__user {
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .hero {

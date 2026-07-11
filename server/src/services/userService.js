@@ -24,6 +24,19 @@ export async function getUserById(id) {
   return prisma.user.findUnique({ where: { id } })
 }
 
+// 修改当前登录用户密码：校验旧密码 → 校验新密码强度 → 更新 passwordHash
+export async function changePassword(id, oldPassword, newPassword) {
+  const user = await prisma.user.findUnique({ where: { id } })
+  if (!user) throw ERR.UNAUTHENTICATED()
+  const matched = await bcrypt.compare(oldPassword, user.passwordHash)
+  if (!matched) throw ERR.OLD_PWD_WRONG()
+  if (!newPassword || String(newPassword).length < 6) {
+    throw ERR.PARAM('新密码至少 6 位')
+  }
+  const passwordHash = await bcrypt.hash(newPassword, 10)
+  await prisma.user.update({ where: { id }, data: { passwordHash } })
+}
+
 export async function setRole(id, role) {
   return prisma.user.update({ where: { id }, data: { role } })
 }

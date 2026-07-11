@@ -68,8 +68,9 @@ async function onPlay(game) {
           <h2 class="block__title">互动区</h2>
           <p class="block__sub">来聊聊天，留个言</p>
         </div>
-        <div class="interact">
+        <div class="tile-grid">
           <EntryCard
+            tile
             icon="message"
             title="留言板"
             desc="写句话给小屋，也能匿名留下"
@@ -83,8 +84,9 @@ async function onPlay(game) {
           <h2 class="block__title">管理区</h2>
           <p class="block__sub">只有你能看到的小屋后台</p>
         </div>
-        <div class="interact">
+        <div class="tile-grid">
           <EntryCard
+            tile
             icon="users"
             title="用户管理"
             desc="查看与设置成员角色"
@@ -200,10 +202,10 @@ async function onPlay(game) {
   color: var(--muted);
   font-size: 13px;
 }
-.interact {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+.tile-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 16px;
 }
 .about__text {
   margin: 10px 0 0;

@@ -19,13 +19,18 @@
   box-sizing: border-box;
 }
 
-body {
-  margin: 0;
-  font-family: var(--font);
+html {
+  /* 背景放在根元素，根元素始终等于视口高度，
+     内容不足一屏时也不会露出 html 默认底色（避免"两层背景"） */
   background:
     radial-gradient(1200px 600px at 100% -10%, rgba(201, 116, 59, .10), transparent 60%),
     radial-gradient(900px 500px at -10% 10%, rgba(91, 140, 123, .10), transparent 55%),
     var(--bg);
+}
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: var(--font);
   color: var(--text);
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;

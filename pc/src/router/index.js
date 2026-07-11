@@ -5,12 +5,14 @@ const routes = [
   { path: '/', name: 'home', component: () => import('../views/Home.vue') },
   { path: '/login', name: 'login', component: () => import('../views/Login.vue') },
   { path: '/guestbook', name: 'guestbook', component: () => import('../views/Guestbook.vue') },
+  { path: '/profile', name: 'profile', component: () => import('../views/Settings.vue') },
   {
     path: '/admin/users',
     name: 'admin-users',
     meta: { requiresAdmin: true },
     component: () => import('../views/AdminUsers.vue'),
   },
+  { path: '/:pathMatch(.*)*', name: 'not-found', component: () => import('../views/NotFound.vue') },
 ]
 
 const router = createRouter({
