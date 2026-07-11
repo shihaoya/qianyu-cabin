@@ -41,3 +41,19 @@ export function can(user, cap) {
 export function roleLabel(role) {
   return ROLE_LABEL[role] ?? role
 }
+
+// 当前用户能否把他人设为 targetRole（只看自身层级，与目标无关）。
+// 新增角色后无需改动此处，按 ROLE_RANK 自动判定。
+export function canAssignRole(user, targetRole) {
+  return rankOf(user?.role) >= rankOf(targetRole)
+}
+
+// 完整校验：actor 能否把 target 改为 newRole。
+// 规则：① 不能改自己 ② 不能动开发管理员账号（仅开发管理员可）③ 自身层级须 >= 目标角色层级。
+// 新增角色后无需改动此处，①②③ 的层级部分全部由 ROLE_RANK 派生。
+export function canSetRole(actor, target, newRole) {
+  if (!actor || !target) return false
+  if (actor.id === target.id) return false
+  if (target.role === ROLE.OWNER && actor.role !== ROLE.OWNER) return false
+  return canAssignRole(actor, newRole)
+}

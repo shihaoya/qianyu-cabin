@@ -2,16 +2,15 @@
 import { ref, onMounted } from 'vue'
 import { listUsers, updateRole } from '../api/admin.js'
 import { useAuthStore } from '../stores/auth.js'
-import { can, roleLabel, ROLE, ROLES, CAP } from '../permissions.js'
+import { roleLabel, ROLES, canAssignRole, canSetRole } from '../permissions.js'
 import AppHeader from '../components/base/AppHeader.vue'
 import BaseCard from '../components/base/BaseCard.vue'
 import BaseButton from '../components/base/BaseButton.vue'
 
 const auth = useAuthStore()
 
-const roleOptions = can(auth.user, CAP.OWNER_TOOLS)
-  ? ROLES
-  : ROLES.filter((r) => r !== ROLE.OWNER)
+// 可选角色由自身层级派生：管理员只能设 user/admin，开发管理员可选全部
+const roleOptions = ROLES.filter((r) => canAssignRole(auth.user, r))
 const users = ref([])
 const total = ref(0)
 const error = ref('')
@@ -28,8 +27,8 @@ async function load() {
 }
 
 function openEdit(user) {
-  // 站长只能由站长修改（且不能改自己），因此管理员对站长、以及本人都不开放编辑
-  if (user.role === ROLE.OWNER || user.id === auth.user.id) return
+  // 不能改自己、不能动开发管理员账号：统一走 canSetRole 判定
+  if (!canSetRole(auth.user, user, user.role)) return
   editing.value = user
   draftRole.value = user.role
 }
@@ -75,7 +74,7 @@ onMounted(load)
               </span>
             </div>
             <BaseButton
-              v-if="u.role !== ROLE.OWNER && u.id !== auth.user.id"
+              v-if="canSetRole(auth.user, u, u.role)"
               type="text"
               @click="openEdit(u)"
             >

@@ -1,7 +1,7 @@
 import { listUsers, setRole, getUserById } from '../services/userService.js'
 import { ERR } from '../utils/errors.js'
 import { sendOk } from '../utils/response.js'
-import { isValidRole, can, ROLE, CAP } from '../permissions.js'
+import { isValidRole, can, ROLE, CAP, canAssignRole } from '../permissions.js'
 
 export async function getUsers(req, res) {
   const page = Math.max(1, Number(req.query.page) || 1)
@@ -24,9 +24,11 @@ export async function updateUserRole(req, res) {
     throw ERR.FORBIDDEN('只有开发管理员可以修改开发管理员的角色')
   }
 
-  // 只有开发管理员能把他人设为开发管理员
-  if (role === ROLE.OWNER && !can(req.user, CAP.SET_OWNER)) {
-    throw ERR.FORBIDDEN('只有开发管理员可以设置开发管理员')
+  // 自身层级须足以授予该角色（新增角色后按 ROLE_RANK 自动判定，无需改此处）
+  if (!canAssignRole(req.user, role)) {
+    throw ERR.FORBIDDEN(
+      role === ROLE.OWNER ? '只有开发管理员可以设置开发管理员' : '无权设置该角色',
+    )
   }
 
   const user = await setRole(id, role)
