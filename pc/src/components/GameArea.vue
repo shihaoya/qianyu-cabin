@@ -3,69 +3,78 @@
 name: GameArea
 path: src/components/GameArea.vue
 category: business
-purpose: 主页游戏区容器（千羽爬树入口）
+purpose: 主页游戏区网格容器，展示多个游戏入口（当前含千羽爬树），后续加游戏只需在 games 数组追加
 appliesTo: PC
-props: 无
-events: select
-example: <GameArea @select="onPlay" />
+props: games(Array)
+events: select(game)
+example: <GameArea :games="games" @select="onPlay" />
 -->
 <script setup>
-defineEmits(['select'])
+import GameIcon from './base/GameIcon.vue'
+
+defineProps({
+  games: { type: Array, default: () => [] },
+})
+const emit = defineEmits(['select'])
 </script>
 
 <template>
-  <div
-    class="game-area"
-    role="button"
-    tabindex="0"
-    @click="$emit('select')"
-    @keyup.enter="$emit('select')"
-  >
-    <svg class="game-area__art" viewBox="0 0 200 200" fill="none" aria-hidden="true">
-      <rect x="92" y="90" width="16" height="90" rx="4" fill="var(--primary)" />
-      <circle cx="100" cy="70" r="46" fill="var(--accent)" opacity="0.85" />
-      <circle cx="70" cy="86" r="30" fill="var(--accent)" opacity="0.7" />
-      <circle cx="132" cy="86" r="30" fill="var(--accent)" opacity="0.7" />
-      <g transform="translate(118 52)">
-        <ellipse cx="0" cy="0" rx="14" ry="10" fill="var(--primary)" />
-        <circle cx="10" cy="-6" r="7" fill="var(--primary)" />
-        <path d="M17 -6 l8 -2 -6 5Z" fill="var(--accent)" />
-        <circle cx="12" cy="-7" r="1.6" fill="#fff" />
-      </g>
-    </svg>
-    <p class="game-area__title">千羽爬树</p>
-    <p class="game-area__hint">点击进入游戏</p>
+  <div class="game-grid">
+    <button
+      v-for="game in games"
+      :key="game.id"
+      class="game-tile"
+      type="button"
+      @click="emit('select', game)"
+    >
+      <span class="game-tile__art">
+        <GameIcon :type="game.icon" :size="56" />
+      </span>
+      <span class="game-tile__name">{{ game.name }}</span>
+    </button>
   </div>
 </template>
 
 <style scoped>
-.game-area {
+.game-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+  gap: 16px;
+}
+.game-tile {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
-  cursor: pointer;
-  padding: 24px;
+  gap: 10px;
+  padding: 18px 12px;
+  border: 1px solid #eadfca;
   border-radius: var(--radius);
   background: var(--bg);
-  transition: transform 0.15s ease;
+  cursor: pointer;
+  font: inherit;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
 }
-.game-area:hover {
-  transform: translateY(-3px);
+.game-tile:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 20px rgba(91, 140, 123, 0.18);
+  border-color: var(--primary);
 }
-.game-area__art {
-  width: 160px;
-  height: 160px;
+.game-tile:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
 }
-.game-area__title {
-  margin: 8px 0 0;
+.game-tile__art {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: rgba(91, 140, 123, 0.14);
+}
+.game-tile__name {
   color: var(--text);
-  font-size: 18px;
+  font-size: 14px;
   font-weight: 600;
-}
-.game-area__hint {
-  margin: 0;
-  color: var(--muted);
-  font-size: 13px;
 }
 </style>

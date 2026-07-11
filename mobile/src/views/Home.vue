@@ -11,12 +11,16 @@ const router = useRouter()
 const route = useRoute()
 const auth = useAuthStore()
 
-function onPlay() {
+const games = [
+  { id: 'climb', name: '千羽爬树', icon: 'climb' },
+]
+
+function onPlay(game) {
   if (!auth.isLoggedIn) {
     router.push('/login')
     return
   }
-  window.alert('千羽爬树功能开发中~')
+  window.alert(`${game.name} 功能开发中~`)
 }
 </script>
 
@@ -35,7 +39,7 @@ function onPlay() {
 
     <main class="home__main">
       <BaseCard title="游戏区">
-        <GameArea @select="onPlay" />
+        <GameArea :games="games" @select="onPlay" />
       </BaseCard>
     </main>
 
