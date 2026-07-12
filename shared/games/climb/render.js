@@ -18,84 +18,110 @@ export function laneX(lane, cfg) {
   return treeX(treeIndex, cfg) + side * cfg.world.sideOffset
 }
 
+// 静态场景（天空+地面+树干）离屏缓存：这些内容每帧完全一致（不随游戏状态变化、树也不滚动），
+// 每帧重建渐变、重绘上百段树皮纹路是移动端卡顿主因。预渲染到离屏 canvas 后，
+// 每帧只需 drawImage 贴一次，绘制开销从「几百次 path 操作」降到「一次位图拷贝」。
+let _bgCache = null
+function getStaticBackground(cfg) {
+  const W = cfg.view.width
+  const H = cfg.view.height
+  const dpr = (typeof window !== 'undefined' && window.devicePixelRatio) || 1
+  if (_bgCache && _bgCache.w === W && _bgCache.h === H && _bgCache.dpr === dpr) {
+    return _bgCache.canvas
+  }
+  if (typeof document === 'undefined') return null // 非浏览器环境（如测试）退化为每帧直绘
+  const canvas = document.createElement('canvas')
+  canvas.width = Math.round(W * dpr)
+  canvas.height = Math.round(H * dpr)
+  const bctx = canvas.getContext('2d')
+  bctx.setTransform(dpr, 0, 0, dpr, 0, 0) // 用逻辑坐标绘制，贴回主画布时 1:1 清晰
+  paintStaticScene(bctx, cfg, W, H)
+  _bgCache = { canvas, w: W, h: H, dpr }
+  return canvas
+}
+
+// 绘制静态场景（天空、地面、树干）。既用于构建离屏缓存，也作为无离屏能力时的回退。
+function paintStaticScene(ctx, cfg, W, H) {
+  // 背景天空
+  const g = ctx.createLinearGradient(0, 0, 0, H)
+  g.addColorStop(0, '#cfe8df')
+  g.addColorStop(1, cfg.view.background)
+  ctx.fillStyle = g
+  ctx.fillRect(0, 0, W, H)
+
+  // 地面
+  const gh = cfg.world.groundHeight
+  ctx.fillStyle = '#d9c9a3'
+  ctx.fillRect(0, H - gh, W, gh)
+  ctx.fillStyle = '#c9b98a'
+  ctx.fillRect(0, H - gh, W, 4)
+
+  // 树（仅树干：上窄下宽 + 树皮纹理 + 根部 + 树瘤；固定区域不滚动；不画叶子，避免显得假）
+  const tw = cfg.world.trunkWidth
+  for (let i = 0; i < cfg.world.treeCount; i++) {
+    const x = treeX(i, cfg)
+    const halfTop = tw / 2
+    const halfBot = tw / 2 * 1.28 // 根部稍宽，更自然
+    // 树干主体（梯形，圆柱体积感）
+    const tg = ctx.createLinearGradient(x - halfTop, 0, x + halfTop, 0)
+    tg.addColorStop(0, '#5b3a1a')
+    tg.addColorStop(0.5, cfg.world.trunkColor)
+    tg.addColorStop(1, '#5b3a1a')
+    ctx.fillStyle = tg
+    ctx.beginPath()
+    ctx.moveTo(x - halfTop, 0)
+    ctx.lineTo(x + halfTop, 0)
+    ctx.lineTo(x + halfBot, H)
+    ctx.lineTo(x - halfBot, H)
+    ctx.closePath()
+    ctx.fill()
+    // 树皮竖纹（带轻微弯曲）
+    ctx.strokeStyle = 'rgba(60,38,16,0.35)'
+    ctx.lineWidth = 2
+    const offsets = [-tw * 0.26, 0, tw * 0.26]
+    for (const o of offsets) {
+      ctx.beginPath()
+      ctx.moveTo(x + o, 0)
+      let yy = 0
+      while (yy < H) {
+        yy += 26
+        ctx.lineTo(x + o + Math.sin(yy * 0.12 + i * 1.7) * 3, yy)
+      }
+      ctx.stroke()
+    }
+    // 树瘤（几个小椭圆点缀）
+    ctx.fillStyle = 'rgba(60,38,16,0.3)'
+    for (let k = 1; k <= 4; k++) {
+      const ky = (H * k) / 5 + ((i * 37) % 30) - 15
+      ctx.beginPath()
+      ctx.ellipse(x + (k % 2 ? 7 : -7), ky, 5, 7, 0, 0, Math.PI * 2)
+      ctx.fill()
+    }
+    // 根部（底部向外散开，增强“扎根地面”感）
+    ctx.fillStyle = '#6f4420'
+    for (const s of [-1, 1]) {
+      ctx.beginPath()
+      ctx.moveTo(x, H - 2)
+      ctx.lineTo(x + s * halfBot, H)
+      ctx.lineTo(x + s * (halfBot + 22), H)
+      ctx.lineTo(x + s * (halfBot + 6), H - 16)
+      ctx.closePath()
+      ctx.fill()
+    }
+  }
+}
+
 export function draw(ctx, state, cfg, images) {
   const W = cfg.view.width
   const H = cfg.view.height
   if (!W || !H) return
 
-  // 背景天空
+  // 静态场景（天空+地面+树）：一次性预渲染并缓存，每帧只贴一张图（性能关键）
   try {
-    const g = ctx.createLinearGradient(0, 0, 0, H)
-    g.addColorStop(0, '#cfe8df')
-    g.addColorStop(1, cfg.view.background)
-    ctx.fillStyle = g
-    ctx.fillRect(0, 0, W, H)
+    const bg = getStaticBackground(cfg)
+    if (bg) ctx.drawImage(bg, 0, 0, W, H)
+    else paintStaticScene(ctx, cfg, W, H) // 无离屏能力时回退到每帧直绘
   } catch (e) { renderError(ctx, W, H, 'bg', e); return }
-
-  // 地面
-  try {
-    const gh = cfg.world.groundHeight
-    ctx.fillStyle = '#d9c9a3'
-    ctx.fillRect(0, H - gh, W, gh)
-    ctx.fillStyle = '#c9b98a'
-    ctx.fillRect(0, H - gh, W, 4)
-  } catch (e) { renderError(ctx, W, H, 'ground', e); return }
-
-  // 树（仅树干：上窄下宽 + 树皮纹理 + 根部 + 树瘤；固定区域不滚动；不画叶子，避免显得假）
-  try {
-    const tw = cfg.world.trunkWidth
-    for (let i = 0; i < cfg.world.treeCount; i++) {
-      const x = treeX(i, cfg)
-      const halfTop = tw / 2
-      const halfBot = tw / 2 * 1.28 // 根部稍宽，更自然
-      // 树干主体（梯形，圆柱体积感）
-      const g = ctx.createLinearGradient(x - halfTop, 0, x + halfTop, 0)
-      g.addColorStop(0, '#5b3a1a')
-      g.addColorStop(0.5, cfg.world.trunkColor)
-      g.addColorStop(1, '#5b3a1a')
-      ctx.fillStyle = g
-      ctx.beginPath()
-      ctx.moveTo(x - halfTop, 0)
-      ctx.lineTo(x + halfTop, 0)
-      ctx.lineTo(x + halfBot, H)
-      ctx.lineTo(x - halfBot, H)
-      ctx.closePath()
-      ctx.fill()
-      // 树皮竖纹（带轻微弯曲）
-      ctx.strokeStyle = 'rgba(60,38,16,0.35)'
-      ctx.lineWidth = 2
-      const offsets = [-tw * 0.26, 0, tw * 0.26]
-      for (const o of offsets) {
-        ctx.beginPath()
-        ctx.moveTo(x + o, 0)
-        let yy = 0
-        while (yy < H) {
-          yy += 26
-          ctx.lineTo(x + o + Math.sin(yy * 0.12 + i * 1.7) * 3, yy)
-        }
-        ctx.stroke()
-      }
-      // 树瘤（几个小椭圆点缀）
-      ctx.fillStyle = 'rgba(60,38,16,0.3)'
-      for (let k = 1; k <= 4; k++) {
-        const ky = (H * k) / 5 + ((i * 37) % 30) - 15
-        ctx.beginPath()
-        ctx.ellipse(x + (k % 2 ? 7 : -7), ky, 5, 7, 0, 0, Math.PI * 2)
-        ctx.fill()
-      }
-      // 根部（底部向外散开，增强“扎根地面”感）
-      ctx.fillStyle = '#6f4420'
-      for (const s of [-1, 1]) {
-        ctx.beginPath()
-        ctx.moveTo(x, H - 2)
-        ctx.lineTo(x + s * halfBot, H)
-        ctx.lineTo(x + s * (halfBot + 22), H)
-        ctx.lineTo(x + s * (halfBot + 6), H - 16)
-        ctx.closePath()
-        ctx.fill()
-      }
-    }
-  } catch (e) { renderError(ctx, W, H, 'tree', e); return }
 
   // 道具（带光晕；贴图优先，缺图回退到代码绘制）
   try {

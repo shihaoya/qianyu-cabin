@@ -99,6 +99,7 @@ const held = reactive({ up: false, down: false, attack: false })
 let raf = null
 let last = null
 let autoSaveAcc = 0
+let ctx2d = null // 缓存 2D context，避免每帧 getContext
 
 // 让画布填满整个舞台（整页即游戏）；内部分辨率跟随显示尺寸与 dpr
 function resize() {
@@ -106,13 +107,14 @@ function resize() {
   if (!c) return
   const rect = c.getBoundingClientRect()
   if (!rect.width || !rect.height) return
-  const dpr = window.devicePixelRatio || 1
+  // 移动端把 dpr 封顶到 2：高分屏（3x）像素填充量是 2x 的 2 倍多，封顶后性能显著提升，肉眼几乎无差
+  const dpr = Math.min(window.devicePixelRatio || 1, 2)
   c.width = Math.round(rect.width * dpr)
   c.height = Math.round(rect.height * dpr)
   config.view.width = Math.round(rect.width)
   config.view.height = Math.round(rect.height)
-  const ctx = c.getContext('2d')
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+  ctx2d = c.getContext('2d')
+  ctx2d.setTransform(dpr, 0, 0, dpr, 0, 0)
 }
 
 function formatTime(s) {
@@ -146,8 +148,8 @@ function loop(ts) {
       doSave()
     }
   }
-  const ctx = canvasRef.value?.getContext('2d')
-  if (ctx) draw(ctx, state, config, images)
+  if (!ctx2d) ctx2d = canvasRef.value?.getContext('2d')
+  if (ctx2d) draw(ctx2d, state, config, images)
 }
 
 async function doSave() {
@@ -243,13 +245,10 @@ onMounted(async () => {
   // 让画布填满整个舞台（整页即游戏）
   resize()
   // 进入页面只渲染一帧静态背景（不启动循环），等用户点「开始游戏」
-  const ctx = canvasRef.value?.getContext('2d')
-  if (ctx) draw(ctx, state, config, images)
+  if (!ctx2d) ctx2d = canvasRef.value?.getContext('2d')
+  if (ctx2d) draw(ctx2d, state, config, images)
   sprite.onload = () => {
-    if (!started.value) {
-      const c = canvasRef.value?.getContext('2d')
-      if (c) draw(c, state, config, images)
-    }
+    if (!started.value && ctx2d) draw(ctx2d, state, config, images)
   }
 
   try {
