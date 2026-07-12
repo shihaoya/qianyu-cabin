@@ -23,23 +23,21 @@ export default {
     ))
       return false
     if (!Number.isInteger(lane) || lane < 0 || lane > 5) return false
-    if (hp > 3 || score > 10_000_000) return false
     return true
   },
 
   // 校验「结束结果元组」是否自洽。
-  // 娱乐向小游戏，不做严格的分数守恒校验，只拦明显非法的脏数据：
+  // 娱乐向小游戏，不做严格的防作弊校验（能改客户端的人提交时也能改回合法值，限制无意义），
+  // 只拦明显非法的脏数据：
   //   - 必须是个对象；
-  //   - 四个分值字段都必须是非负整数（防止浮点/字符串/缺失导致入库异常）；
-  //   - hpLeft 不超过满血 3（防明显篡改）。
-  // 注：原本的「score 必须落在 [3*bugsKilled, 5*bugsKilled]」守恒校验与
-  // 「单局 <= 24h」上限已移除——前者对小游戏过严易误杀正常成绩，后者无实际意义。
+  //   - 四个分值字段都必须是非负整数（防止浮点/字符串/缺失导致入库异常）。
+  // 注：原本的「score 必须落在 [3*bugsKilled, 5*bugsKilled]」守恒校验、「hpLeft<=3」与
+  // 「单局 <= 24h」上限均已移除——娱乐向小游戏无需这些限制。
   validateResult(result) {
     if (!result || typeof result !== 'object') return false
     const { score, bugsKilled, timeSurvived, hpLeft } = result
     const ints = [score, bugsKilled, timeSurvived, hpLeft]
     if (!ints.every((v) => Number.isInteger(v) && v >= 0)) return false
-    if (hpLeft > 3) return false
     return true
   },
 
