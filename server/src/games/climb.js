@@ -1,9 +1,13 @@
 // 千羽爬树 · 服务端 engine（实时动作类）。这是「每游戏唯一要写的后端文件」。
 // 前端上报「结束结果元组」，这里只负责校验自洽 + 算官方分；计分规则以本文件为准（防作弊单一真源）。
 //
-// 状态（存档）形状：{ lane, h, hp, score, bugsKilled, timeSurvived, shieldRemainingMs }
+// 状态（存档）形状（整体为平台无关 JSON，随 HTTP 存/读，跨端续玩）：
+//   标量：{ lane, h, hp, score, bugScore, bugsKilled, timeSurvived, shieldRemainingMs,
+//           shieldCount, startedAt, bugSpawnTimer, itemSpawnTimer, nextId }
+//   动态数组：bugs[]（场上虫子，含 type/lane/y/speedJitter 等）、items[]（掉落物，含 type/gap/x/y 等）
+//   —— 校验只读取上面的标量做自洽检查，bugs/items 会随 JSON 无损存储与还原，不影响校验。
 //   lane：横向离散位置 0..5（3 棵树 × 左/右两侧）；h：沿树高度
-// 结果（结束上报）形状：{ score, bugsKilled, timeSurvived, hpLeft }
+// 结果（结束上报）形状：{ score, bugScore, bugsKilled, timeSurvived, hpLeft, startedAt }
 export default {
   key: 'climb',
   name: '千羽爬树',

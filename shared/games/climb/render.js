@@ -5,7 +5,10 @@ import { charScreenX, charJumpArc } from './engine.js'
 // 第 i 棵树中心的屏幕 x（与引擎 treeCenterX 保持一致）
 export function treeX(i, cfg) {
   const n = cfg.world.treeCount
-  return (cfg.view.width * (i + 1)) / (n + 1)
+  const r = cfg.world.treeEdgeRatio ?? 1 / (n + 1)
+  const w = cfg.view.width
+  if (n <= 1) return w / 2
+  return w * (r + (1 - 2 * r) * (i / (n - 1)))
 }
 
 // 第 lane 个横向位置（某棵树左/右）的屏幕 x（与引擎 laneX 保持一致）

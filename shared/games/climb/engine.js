@@ -7,10 +7,15 @@
 
 export const GAME_OVER = 'gameOver'
 
-// 第 i 棵树中心的 x（与渲染 treeCenterX 保持一致）
+// 第 i 棵树中心的 x（与渲染 treeX 保持一致）
+// 分布公式：w * (r + (1-2r) * i/(n-1))，r = world.treeEdgeRatio（两侧留白占比）。
+// r=1/(n+1) 时等价于原 (i+1)/(n+1)；r 越小树越靠边、树间空隙越大、两侧空白越少。
 export function treeCenterX(i, cfg) {
   const n = cfg.world.treeCount
-  return (cfg.view.width * (i + 1)) / (n + 1)
+  const r = cfg.world.treeEdgeRatio ?? 1 / (n + 1)
+  const w = cfg.view.width
+  if (n <= 1) return w / 2
+  return w * (r + (1 - 2 * r) * (i / (n - 1)))
 }
 
 // 横向离散位置总数
@@ -102,9 +107,15 @@ export function createInitialState(cfg, saved) {
     base.attacking = false
     base.sHeld = false
     base.sHoldTimer = 0
-    base.bugs = []
-    base.items = []
+    // 恢复场上虫子和掉落物（复制一份，避免持有 reactive 代理引用），让「回到上次游戏」能接续原场景
+    base.bugs = Array.isArray(saved.bugs) ? saved.bugs.map((b) => ({ ...b })) : []
+    base.items = Array.isArray(saved.items) ? saved.items.map((it) => ({ ...it })) : []
     base.jump = { active: false, fromLane: base.lane, toLane: base.lane, t: 0, dur: 200 }
+    // 兜底：旧存档缺这些字段时给合理默认值（shieldCount/nextId/刷新计时器）
+    if (!Number.isFinite(base.shieldCount)) base.shieldCount = 0
+    if (!Number.isFinite(base.nextId)) base.nextId = 1
+    if (!Number.isFinite(base.bugSpawnTimer)) base.bugSpawnTimer = cfg.bugs.spawnIntervalMs
+    if (!Number.isFinite(base.itemSpawnTimer)) base.itemSpawnTimer = cfg.items.spawnIntervalMs
   }
   return base
 }
@@ -120,7 +131,14 @@ export function serialize(state) {
     bugsKilled: state.bugsKilled,
     timeSurvived: state.timeSurvived,
     shieldRemainingMs: state.shieldRemainingMs,
+    shieldCount: state.shieldCount || 0, // 护盾剩余抵挡次数，需随续玩恢复
     startedAt: state.startedAt || null, // 随存档保留，跨端续玩仍记得原始开局时间
+    // 场上动态对象：复制一份（脱离 reactive 代理），让续玩能原样还原虫子与掉落物
+    bugSpawnTimer: state.bugSpawnTimer,
+    itemSpawnTimer: state.itemSpawnTimer,
+    nextId: state.nextId || 1,
+    bugs: state.bugs.map((b) => ({ ...b })),
+    items: state.items.map((it) => ({ ...it })),
   }
 }
 

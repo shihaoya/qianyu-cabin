@@ -324,32 +324,35 @@ defineExpose({ togglePause, onSave: doSave })
       </div>
 
       <div v-if="helpOpen" class="cg-overlay">
-        <div class="cg-help">
-          <h3>玩法说明</h3>
-          <ul class="cg-help__rules">
-            <li v-for="(t, i) in config.help" :key="i">{{ t }}</li>
-          </ul>
+        <div class="cg-panel cg-panel--help">
+          <div class="cg-panel__body">
+            <h3>玩法说明</h3>
+            <ul class="cg-help__rules">
+              <li v-for="(t, i) in config.help" :key="i">{{ t }}</li>
+            </ul>
 
-          <h4>虫子图鉴</h4>
-          <ul class="cg-help__codex">
-            <li v-for="b in config.bugs.types" :key="b.key">
-              <img v-if="images.bugs[b.key]" :src="images.bugs[b.key].src" class="cg-help__ico" :alt="b.name" />
-              <span class="cg-help__name">{{ b.name }}</span>
-              <span class="cg-help__tag" :class="b.killable ? 'is-kill' : 'is-dodge'">{{ b.killable ? '可击落' : '需躲避' }}</span>
-              <span class="cg-help__desc">{{ b.desc }}</span>
-            </li>
-          </ul>
+            <h4>虫子图鉴</h4>
+            <ul class="cg-help__codex">
+              <li v-for="b in config.bugs.types" :key="b.key">
+                <img v-if="images.bugs[b.key]" :src="images.bugs[b.key].src" class="cg-help__ico" :alt="b.name" />
+                <span class="cg-help__name">{{ b.name }}</span>
+                <span class="cg-help__tag" :class="b.killable ? 'is-kill' : 'is-dodge'">{{ b.killable ? '可击落' : '需躲避' }}</span>
+                <span class="cg-help__desc">{{ b.desc }}</span>
+              </li>
+            </ul>
 
-          <h4>掉落物图鉴</h4>
-          <ul class="cg-help__codex">
-            <li v-for="it in config.items.types" :key="it.key">
-              <img v-if="images.items[it.key]" :src="images.items[it.key].src" class="cg-help__ico" :alt="it.name" />
-              <span class="cg-help__name">{{ it.name }}</span>
-              <span class="cg-help__desc">{{ it.desc }}</span>
-            </li>
-          </ul>
-
-          <BaseButton type="primary" @click="closeHelp">继续游戏</BaseButton>
+            <h4>掉落物图鉴</h4>
+            <ul class="cg-help__codex">
+              <li v-for="it in config.items.types" :key="it.key">
+                <img v-if="images.items[it.key]" :src="images.items[it.key].src" class="cg-help__ico" :alt="it.name" />
+                <span class="cg-help__name">{{ it.name }}</span>
+                <span class="cg-help__desc">{{ it.desc }}</span>
+              </li>
+            </ul>
+          </div>
+          <div class="cg-panel__foot">
+            <BaseButton type="primary" size="lg" @click="closeHelp">继续游戏</BaseButton>
+          </div>
         </div>
       </div>
 
@@ -362,38 +365,46 @@ defineExpose({ togglePause, onSave: doSave })
       </div>
 
       <div v-if="boardOpen" class="cg-overlay">
-        <div class="cg-board">
-          <h3>排行榜</h3>
-          <ol class="cg-board__list">
-            <li v-for="row in boardList" :key="row.userId" class="cg-board__item">
-              <span class="cg-board__no">{{ row.rank }}</span>
-              <span class="cg-board__name">{{ row.nickname }}</span>
-              <span class="cg-board__plat">{{ platformLabel(row.platform) }}</span>
-              <span class="cg-board__score">{{ row.score }} {{ game.scoreLabel }}</span>
-            </li>
-            <li v-if="!boardList.length" class="cg-board__empty">还没有记录，来抢第一名～</li>
-          </ol>
-          <BaseButton type="primary" @click="closeBoard">返回游戏</BaseButton>
+        <div class="cg-panel cg-panel--board">
+          <div class="cg-panel__body">
+            <h3>排行榜</h3>
+            <ol class="cg-board__list">
+              <li v-for="row in boardList" :key="row.userId" class="cg-board__item">
+                <span class="cg-board__no">{{ row.rank }}</span>
+                <span class="cg-board__name">{{ row.nickname }}</span>
+                <span class="cg-board__plat">{{ platformLabel(row.platform) }}</span>
+                <span class="cg-board__score">{{ row.score }} {{ game.scoreLabel }}</span>
+              </li>
+              <li v-if="!boardList.length" class="cg-board__empty">还没有记录，来抢第一名～</li>
+            </ol>
+          </div>
+          <div class="cg-panel__foot">
+            <BaseButton type="primary" size="lg" @click="closeBoard">返回游戏</BaseButton>
+          </div>
         </div>
       </div>
 
       <div v-if="historyOpen" class="cg-overlay">
-        <div class="cg-hist">
-          <h3>我的历史</h3>
-          <div class="cg-hist__list">
-            <div v-for="row in historyList" :key="row.id" class="cg-hist__item">
-              <div class="cg-hist__top">
-                <span class="cg-hist__score">{{ row.score }} {{ game.scoreLabel }}</span>
-                <span class="cg-hist__alive">存活 {{ formatTime(row.detail?.timeSurvived || 0) }}</span>
+        <div class="cg-panel cg-panel--hist">
+          <div class="cg-panel__body">
+            <h3>我的历史</h3>
+            <div class="cg-hist__list">
+              <div v-for="row in historyList" :key="row.id" class="cg-hist__item">
+                <div class="cg-hist__top">
+                  <span class="cg-hist__score">{{ row.score }} {{ game.scoreLabel }}</span>
+                  <span class="cg-hist__alive">存活 {{ formatTime(row.detail?.timeSurvived || 0) }}</span>
+                </div>
+                <div class="cg-hist__times">
+                  <span>开始 {{ formatDateTime(row.detail?.startedAt) }}</span>
+                  <span>结束 {{ formatDateTime(row.finishedAt) }}</span>
+                </div>
               </div>
-              <div class="cg-hist__times">
-                <span>开始 {{ formatDateTime(row.detail?.startedAt) }}</span>
-                <span>结束 {{ formatDateTime(row.finishedAt) }}</span>
-              </div>
+              <p v-if="!historyList.length" class="cg-hist__empty">还没有历史记录，先玩一局吧～</p>
             </div>
-            <p v-if="!historyList.length" class="cg-hist__empty">还没有历史记录，先玩一局吧～</p>
           </div>
-          <BaseButton type="primary" @click="closeHistory">返回游戏</BaseButton>
+          <div class="cg-panel__foot">
+            <BaseButton type="primary" size="lg" @click="closeHistory">返回游戏</BaseButton>
+          </div>
         </div>
       </div>
     </div>
@@ -404,7 +415,6 @@ defineExpose({ togglePause, onSave: doSave })
       <button class="cg-key cg-key--left" @pointerdown="onDown($event, 'left')" @pointerup="onUp($event, 'left')" @pointercancel="onUp($event, 'left')">◀</button>
       <button class="cg-key cg-key--down" @pointerdown="onDown($event, 'down')" @pointerup="onUp($event, 'down')" @pointerleave="onUp($event, 'down')" @pointercancel="onUp($event, 'down')">▼</button>
       <button class="cg-key cg-key--right" @pointerdown="onDown($event, 'right')" @pointerup="onUp($event, 'right')" @pointercancel="onUp($event, 'right')">▶</button>
-      <button class="cg-key cg-key--atk" @pointerdown="onDown($event, 'attack')" @pointerup="onUp($event, 'attack')" @pointerleave="onUp($event, 'attack')" @pointercancel="onUp($event, 'attack')">拍击</button>
       <button class="cg-key cg-key--pause" @pointerdown.prevent="togglePause">⏸</button>
     </div>
   </div>
@@ -517,13 +527,36 @@ defineExpose({ togglePause, onSave: doSave })
   font-weight: 700;
   cursor: pointer;
 }
-.cg-board {
+.cg-panel {
+  display: flex;
+  flex-direction: column;
   background: var(--surface);
   border-radius: var(--radius);
-  padding: 20px 22px;
   max-width: 90%;
   width: 360px;
+  max-height: 88%;
+  overflow: hidden; /* 内容在 body 滚动，foot 按钮固定底部 */
+  box-shadow: var(--shadow);
   text-align: left;
+}
+.cg-panel--help {
+  width: min(420px, 90%);
+}
+.cg-panel__body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 20px 22px;
+}
+.cg-panel__foot {
+  flex-shrink: 0;
+  display: flex;
+  padding: 12px 22px;
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+}
+.cg-panel__foot :deep(.base-btn) {
+  width: 100%;
 }
 .cg-board h3 {
   margin: 0 0 12px;
@@ -531,13 +564,11 @@ defineExpose({ togglePause, onSave: doSave })
 }
 .cg-board__list {
   list-style: none;
-  margin: 0 0 14px;
+  margin: 0 0 4px;
   padding: 0;
   display: flex;
   flex-direction: column;
   gap: 6px;
-  max-height: 50vh;
-  overflow-y: auto;
 }
 .cg-board__item {
   display: grid;
@@ -579,25 +610,16 @@ defineExpose({ togglePause, onSave: doSave })
   text-align: center;
   padding: 16px 0;
 }
-.cg-hist {
-  background: var(--surface);
-  border-radius: var(--radius);
-  padding: 20px 22px;
-  max-width: 90%;
-  width: 360px;
-  text-align: left;
-}
+/* 历史弹框沿用 .cg-panel 容器样式 */
 .cg-hist h3 {
   margin: 0 0 12px;
   font-family: var(--font-display);
 }
 .cg-hist__list {
-  margin: 0 0 14px;
+  margin: 0 0 4px;
   display: flex;
   flex-direction: column;
   gap: 8px;
-  max-height: 50vh;
-  overflow-y: auto;
 }
 .cg-hist__item {
   padding: 8px 10px;
@@ -658,15 +680,7 @@ defineExpose({ togglePause, onSave: doSave })
   max-width: 86%;
   text-align: left;
 }
-.cg-help {
-  background: var(--surface);
-  border-radius: var(--radius);
-  padding: 20px 22px;
-  width: min(420px, 90%);
-  max-height: 86%;
-  overflow-y: auto;
-  text-align: left;
-}
+/* 帮助弹框沿用 .cg-panel / .cg-panel--help 样式 */
 .cg-start {
   background: var(--surface);
   border-radius: var(--radius);
@@ -767,7 +781,7 @@ defineExpose({ togglePause, onSave: doSave })
   grid-template-areas:
     '. up .'
     'left down right'
-    'atk atk pause';
+    '. pause .';
   gap: 10px;
   width: 100%;
   max-width: 320px;
@@ -799,10 +813,6 @@ defineExpose({ togglePause, onSave: doSave })
 }
 .cg-key--right {
   grid-area: right;
-}
-.cg-key--atk {
-  grid-area: atk;
-  background: var(--accent);
 }
 .cg-key--pause {
   grid-area: pause;

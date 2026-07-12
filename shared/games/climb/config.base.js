@@ -61,7 +61,7 @@ export function buildClimbConfig(assets, overrides = {}) {
 
     // ── 虫子（从 6 个位置中某一处冒出，沿该位置往上爬；同位置才交互）──
     bugs: {
-      spawnIntervalMs: 1400, // 基础生成间隔（公共默认；移动端会覆盖为 1000）
+      spawnIntervalMs: 1200, // 基础生成间隔（公共默认；移动端会覆盖为 1000）
       spawnIntervalJitter: 600, // 间隔随机抖动上限
       doubleSpawnChance: 0.2, // 每次刷新额外多刷一只的概率
       speed: 70, // 向上爬速度 px/s（基础）
@@ -112,6 +112,10 @@ export function buildClimbConfig(assets, overrides = {}) {
       '天上不定时会掉落物品，提供一些道具~',
     ],
   }
+  // 树在屏幕水平方向的分布：两侧留白占比（默认 1/(treeCount+1)，即原 (i+1)/(n+1) 行为）；
+  // 移动端可设更小值让树更靠边、树间空隙更大、两侧空白更少。
+  cfg.world.treeEdgeRatio = cfg.world.treeEdgeRatio ?? 1 / (cfg.world.treeCount + 1)
+
   return deepMerge(cfg, overrides)
 }
 

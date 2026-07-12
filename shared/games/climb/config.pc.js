@@ -12,5 +12,4 @@ const assets = { sprite, bugYt, bugJb, bugHot, ice, bag }
 
 // 仅写区别于公共配置的项；其余继承 @cabin 默认值
 export default buildClimbConfig(assets, {
-  bugs: { spawnIntervalMs: 1000 },
 })
