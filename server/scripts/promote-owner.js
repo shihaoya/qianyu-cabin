@@ -1,6 +1,7 @@
 // 将指定昵称的账号提升为 owner（开发管理员（站长））。
 // 用法（在 server 目录下）：node scripts/promote-owner.js <昵称>
 // 例如：node scripts/promote-owner.js 千羽
+import 'dotenv/config' // 载入 .env，提供 DATABASE_URL（须从 server/ 目录运行）
 import { PrismaClient } from '@prisma/client'
 import { ROLE, roleLabel } from '../src/permissions.js'
 
