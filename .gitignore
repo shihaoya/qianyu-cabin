@@ -27,3 +27,5 @@ server/logs/
 Thumbs.db
 *.swp
 *.swo
+
+.idea
