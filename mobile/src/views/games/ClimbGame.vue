@@ -430,7 +430,7 @@ defineExpose({ togglePause, onSave: doSave })
 .cg-stage {
   position: relative;
   flex: 1;
-  min-height: 0;
+  min-height: 50vh;
   width: 100%;
   overflow: hidden;
 }
@@ -775,6 +775,9 @@ defineExpose({ togglePause, onSave: doSave })
   color: var(--primary);
 }
 .cg-pad {
+  position: sticky;
+  bottom: 0;
+  z-index: 9999;
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   grid-template-areas:
