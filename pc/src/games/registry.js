@@ -1,22 +1,8 @@
+import { buildGameRegistry } from '@cabin/games'
 import ClimbGame from '../views/games/ClimbGame.vue'
 
-// 游戏注册表（前端单一真源）：新增游戏在此登记一行。
-// 注意：scoreLabel / formatDetail 仅用于榜单「展示」，计分与校验以服务端 engine 为唯一真源。
-export const GAMES = [
-  {
-    key: 'climb',
-    name: '千羽爬树',
-    icon: 'climb',
-    scoreLabel: '得分',
-    formatDetail: (detail) => [
-      { label: '击虫', value: detail?.bugsKilled ?? '-' },
-      { label: '时长', value: detail?.timeSurvived != null ? `${detail.timeSurvived}s` : '-' },
-      { label: '剩心', value: detail?.hpLeft ?? '-' },
-    ],
-    component: ClimbGame,
-  },
-]
+// 游戏注册表（前端单一真源）：新增游戏 → 在 @cabin/games 登记元信息，
+// 并在此把平台专属 Vue 组件注入即可。
+const { GAMES, getGame } = buildGameRegistry({ climb: ClimbGame })
 
-export function getGame(key) {
-  return GAMES.find((g) => g.key === key) || null
-}
+export { GAMES, getGame }

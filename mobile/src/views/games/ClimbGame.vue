@@ -14,8 +14,8 @@ import { getGame } from '../../games/registry.js'
 import { useGameSave, submitGameRecord, useGameLeaderboard, useGameHistory } from '../../composables/useGame.js'
 import { confirm, alert } from '../../composables/useConfirm.js'
 import config from '../../games/climb/config.js'
-import { createInitialState, serialize, buildResult, step, moveLane, GAME_OVER } from '../../games/climb/engine.js'
-import { draw } from '../../games/climb/render.js'
+import { createInitialState, serialize, buildResult, step, moveLane, GAME_OVER } from '@cabin/games/climb/engine.js'
+import { draw } from '@cabin/games/climb/render.js'
 
 const props = defineProps({ gameKey: { type: String, required: true } })
 const emit = defineEmits(['finished'])

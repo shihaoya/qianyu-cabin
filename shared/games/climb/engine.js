@@ -7,7 +7,7 @@
 
 export const GAME_OVER = 'gameOver'
 
-// 第 i 棵树中心的 x（与渲染 treeX 保持一致）
+// 第 i 棵树中心的 x（与渲染 treeCenterX 保持一致）
 export function treeCenterX(i, cfg) {
   const n = cfg.world.treeCount
   return (cfg.view.width * (i + 1)) / (n + 1)
