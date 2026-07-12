@@ -27,20 +27,19 @@ export default {
     return true
   },
 
-  // 校验「结束结果元组」是否自洽（防作弊核心）
+  // 校验「结束结果元组」是否自洽。
+  // 娱乐向小游戏，不做严格的分数守恒校验，只拦明显非法的脏数据：
+  //   - 必须是个对象；
+  //   - 四个分值字段都必须是非负整数（防止浮点/字符串/缺失导致入库异常）；
+  //   - hpLeft 不超过满血 3（防明显篡改）。
+  // 注：原本的「score 必须落在 [3*bugsKilled, 5*bugsKilled]」守恒校验与
+  // 「单局 <= 24h」上限已移除——前者对小游戏过严易误杀正常成绩，后者无实际意义。
   validateResult(result) {
     if (!result || typeof result !== 'object') return false
     const { score, bugsKilled, timeSurvived, hpLeft } = result
     const ints = [score, bugsKilled, timeSurvived, hpLeft]
     if (!ints.every((v) => Number.isInteger(v) && v >= 0)) return false
     if (hpLeft > 3) return false
-    // 守恒校验：总分 = 击虫累计分（加班 +5 / 熬夜 +3，每只 3~5 分；热水虫不可击落，不计入）
-    // 故总分应落在 [3*击虫, 5*击虫] 区间内（不再计入存活时间分）
-    const lo = 3 * bugsKilled
-    const hi = 5 * bugsKilled
-    if (score < lo) return false
-    if (score > hi) return false
-    if (timeSurvived > 86400) return false // 单局不超过 24h
     return true
   },
 

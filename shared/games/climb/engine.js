@@ -183,7 +183,6 @@ function spawnBug(state, cfg) {
     radius: t.radius,
     score: t.score || 0, // 击落得分（热水虫=0，不可击落）
     touch: t.touch || '', // 碰到（未攻击）时冒出的吐槽
-    image: t.image || '', // 虫子贴图（渲染层按需加载）
     y: -20 - Math.random() * 60,
     speedJitter: Math.random() * cfg.bugs.speedJitter,
   })
@@ -213,7 +212,6 @@ function spawnItem(state, cfg) {
     effect: t.effect, // 'shield' / 'heal'
     color: t.color,
     name: t.name,
-    image: t.image || '', // 掉落物贴图（渲染层按需加载）
     gap: gapIndex,
     x,
     y: cfg.view.height + cfg.items.size / 2 + Math.random() * 40,

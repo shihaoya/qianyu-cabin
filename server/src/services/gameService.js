@@ -1,6 +1,7 @@
 import { prisma } from '../db/index.js'
 import { ERR } from '../utils/errors.js'
 import { getEngine, listEngines } from '../games/registry.js'
+import { log } from '../utils/logger.js'
 
 function safeParse(s) {
   if (!s) return null
@@ -8,6 +9,34 @@ function safeParse(s) {
     return JSON.parse(s)
   } catch {
     return null
+  }
+}
+
+// 把「存档状态」压缩成可记录的摘要（不记完整 state，避免日志过大 / 泄露过多）
+function summarizeState(s) {
+  if (!s || typeof s !== 'object') return { invalid: 'not-object' }
+  return {
+    lane: s.lane,
+    h: s.h,
+    hp: s.hp,
+    score: s.score,
+    bugsKilled: s.bugsKilled,
+    timeSurvived: s.timeSurvived,
+    shieldRemainingMs: s.shieldRemainingMs,
+    bugs: Array.isArray(s.bugs) ? s.bugs.length : 'n/a',
+    items: Array.isArray(s.items) ? s.items.length : 'n/a',
+  }
+}
+
+// 把「游戏结果」压缩成可记录的摘要
+function summarizeResult(r) {
+  if (!r || typeof r !== 'object') return { invalid: 'not-object' }
+  return {
+    score: r.score,
+    bugScore: r.bugScore,
+    bugsKilled: r.bugsKilled,
+    timeSurvived: r.timeSurvived,
+    hpLeft: r.hpLeft,
   }
 }
 
@@ -25,7 +54,11 @@ async function getEngineOrThrow(key) {
 // 存档：先 engine.validateState 再 upsert（唯一 [userId, gameKey]）
 export async function upsertSave({ userId, gameKey, state, score, platform }) {
   const engine = await getEngineOrThrow(gameKey)
-  if (!engine.validateState(state)) throw ERR.SAVE_INVALID()
+  if (!engine.validateState(state)) {
+    // 校验失败必记日志：能直接看到哪个用户、哪个字段越界（如 score 远超 5*击虫数 = 前后端计分公式不一致）
+    log.warn('[SAVE_INVALID] 存档状态校验失败', { userId, gameKey, state: summarizeState(state) })
+    throw ERR.SAVE_INVALID()
+  }
   const data = {
     gameKey,
     state: JSON.stringify(state),
@@ -61,7 +94,11 @@ export async function clearSave({ userId, gameKey }) {
 // 结束一局：engine 校验结果 → 算分入库 → 清掉续玩档
 export async function addRecord({ userId, gameKey, result, platform }) {
   const engine = await getEngineOrThrow(gameKey)
-  if (!engine.validateResult(result)) throw ERR.RESULT_INVALID()
+  if (!engine.validateResult(result)) {
+    // 校验失败必记日志：可对比 score 与 3~5*击虫数，判断是否为前后端计分公式不一致
+    log.warn('[RESULT_INVALID] 游戏结果校验失败', { userId, gameKey, result: summarizeResult(result) })
+    throw ERR.RESULT_INVALID()
+  }
   const score = engine.score(result)
   const record = await prisma.gameRecord.create({
     data: { userId, gameKey, score, detail: JSON.stringify(result), platform: platform === 'mobile' ? 'mobile' : 'pc' },
