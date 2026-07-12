@@ -13,15 +13,15 @@ export const ROLE_RANK = { [ROLE.USER]: 1, [ROLE.ADMIN]: 2, [ROLE.OWNER]: 3 }
 // 角色中文名
 export const ROLE_LABEL = {
   [ROLE.USER]: '用户',
-  [ROLE.ADMIN]: '管理员（开发者）',
-  [ROLE.OWNER]: '开发管理员（站长）',
+  [ROLE.ADMIN]: '管理员',
+  [ROLE.OWNER]: '开发管理员',
 }
 
 // 能力枚举（key 为语义常量，value 为 can() 判定时使用的字符串）
 export const CAP = {
   MANAGE_USERS: 'manageUsers', // 查看 / 修改用户
-  SET_OWNER: 'setOwner', // 将他人设为开发管理员（站长）
-  OWNER_TOOLS: 'ownerTools', // 仅开发管理员（站长）可见的开发工具（后端当前无对应路由）
+  SET_OWNER: 'setOwner', // 将他人设为开发管理员
+  OWNER_TOOLS: 'ownerTools', // 仅开发管理员可见的开发工具（后端当前无对应路由）
 }
 
 // 能力 → 所需最低角色（role 的 rank 大于等于该值即可）

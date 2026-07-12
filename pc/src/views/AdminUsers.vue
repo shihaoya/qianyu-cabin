@@ -63,7 +63,7 @@ onMounted(load)
     <main class="page__main">
       <section class="qy-rise">
         <h1 class="au-title">用户管理</h1>
-        <p class="au-sub">共 {{ total }} 位用户 · 仅管理员（开发者）与开发管理员（站长）可见</p>
+        <p class="au-sub">共 {{ total }} 位用户 · 仅管理员与开发管理员可见</p>
         <p v-if="error" class="au-error">{{ error }}</p>
         <div class="au-list">
           <BaseCard v-for="u in users" :key="u.id" class="au-item">

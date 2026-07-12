@@ -785,6 +785,8 @@ defineExpose({ togglePause, onSave: doSave })
   gap: 10px;
   width: 100%;
   max-width: 320px;
+  align-self: center; /* 在 flex 纵向容器里水平居中 */
+  margin: 10px 0 calc(12px + env(safe-area-inset-bottom, 0px));
 }
 .cg-key {
   touch-action: none;

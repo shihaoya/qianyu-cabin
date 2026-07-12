@@ -78,7 +78,7 @@ export function createInitialState(cfg, saved) {
     h: cfg.view.height * 0.5,
     hp: cfg.character.maxHp,
     score: 0,
-    bugScore: 0, // 击虫累计分（按虫种：加班+5/熬夜+3），与 timeSurvived 一起算总分
+    bugScore: 0, // 击虫累计分（按虫种：加班+5/熬夜+3），即总分
     bugsKilled: 0,
     timeSurvived: 0,
     startedAt: null, // 本局真实开局时间戳（毫秒）；用于历史记录展示“开始时间”，不影响玩法
@@ -244,11 +244,9 @@ function spawnFloater(state, cfg, x, yWorld, text, color, big) {
 }
 
 // 计分（前后端共用同一公式，保证一致；始终为数值，绝不拼接）
-// 总分 = 击虫累计分(bugScore，按虫种：加班+5/熬夜+3) + 存活时间/2
-// 用四舍五入后的 timeSurvived 计时间分，与服务端校验口径一致，避免四舍五入误差导致成绩被拒
+// 总分 = 击虫累计分(bugScore，按虫种：加班+5/熬夜+3)
 export function computeScore(s) {
-  const time = Math.floor(Math.round(s.timeSurvived || 0) / 2)
-  return (s.bugScore | 0) + time
+  return s.bugScore | 0
 }
 
 // 推进一帧；返回事件数组（用于音效/特效，可忽略）

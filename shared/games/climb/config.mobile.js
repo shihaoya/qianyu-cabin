@@ -20,7 +20,7 @@ export default buildClimbConfig(assets, {
   },
   // 角色缩放（手机屏更秀气）
   character: {
-    scale: 0.3,
+    scale: 0.24,
   },
   // 掉落物大小
   items: {
