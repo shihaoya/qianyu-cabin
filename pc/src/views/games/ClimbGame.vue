@@ -28,40 +28,60 @@ const helpOpen = ref(false)
 const lastResult = ref(null)
 const pendingSave = ref(null)
 
-// 游戏内排行榜（按钮弹出，整页即游戏，不另占侧栏）
+// 游戏内面板（排行榜 / 历史 / 说明）互斥弹出；暂停时也能打开，关闭后回到打开前的状态
 const game = getGame(props.gameKey)
 const boardOpen = ref(false)
+const historyOpen = ref(false)
 const { list: boardList, total: boardTotal, load: loadBoard } = useGameLeaderboard(props.gameKey)
+const { list: historyList, load: loadHistory } = useGameHistory(props.gameKey)
+const panelOpen = computed(() => boardOpen.value || historyOpen.value || helpOpen.value)
+let resumeRunning = false // 打开面板前游戏是否在跑，关闭后据此恢复（暂停→仍暂停，游戏中→继续）
+
 function platformLabel(p) {
   return p === 'mobile' ? '手机' : '电脑'
 }
 function openBoard() {
   if (state.gameOver) return
+  if (!panelOpen.value) resumeRunning = state.running
   boardOpen.value = true
+  historyOpen.value = false
+  helpOpen.value = false
   state.running = false
   loadBoard()
 }
 function closeBoard() {
   boardOpen.value = false
-  if (!state.gameOver && !helpOpen.value && !historyOpen.value) state.running = true
+  if (!panelOpen.value && !state.gameOver) state.running = resumeRunning
 }
-
-// 我的历史记录（按钮弹出：开始时间 / 结束时间 / 存活时长（暂停不计） / 得分）
-const historyOpen = ref(false)
-const { list: historyList, load: loadHistory } = useGameHistory(props.gameKey)
 function openHistory() {
   if (state.gameOver) return
+  if (!panelOpen.value) resumeRunning = state.running
   historyOpen.value = true
+  boardOpen.value = false
+  helpOpen.value = false
   state.running = false
   loadHistory()
 }
 function closeHistory() {
   historyOpen.value = false
-  if (!state.gameOver && !helpOpen.value && !boardOpen.value) state.running = true
+  if (!panelOpen.value && !state.gameOver) state.running = resumeRunning
 }
 
 const sprite = new Image()
 sprite.src = config.character.image
+
+// 预加载虫子 / 掉落物贴图，按 type(key) 建索引交给渲染层
+const images = { sprite, bugs: {}, items: {} }
+for (const t of config.bugs.types) {
+  const im = new Image()
+  im.src = t.image
+  images.bugs[t.key] = im
+}
+for (const t of config.items.types) {
+  const im = new Image()
+  im.src = t.image
+  images.items[t.key] = im
+}
 
 const paused = computed(
   () =>
@@ -127,7 +147,7 @@ function loop(ts) {
     }
   }
   const ctx = canvasRef.value?.getContext('2d')
-  if (ctx) draw(ctx, state, config, sprite)
+  if (ctx) draw(ctx, state, config, images)
 }
 
 async function doSave() {
@@ -141,8 +161,12 @@ async function doSave() {
 
 function togglePause() {
   if (state.gameOver || !started.value) return
-  if (helpOpen.value) {
-    closeHelp()
+  if (panelOpen.value) {
+    // 关闭所有面板，回到打开前的状态（暂停或继续）
+    boardOpen.value = false
+    historyOpen.value = false
+    helpOpen.value = false
+    state.running = resumeRunning
     return
   }
   state.running = !state.running
@@ -150,12 +174,15 @@ function togglePause() {
 }
 function openHelp() {
   if (state.gameOver) return
+  if (!panelOpen.value) resumeRunning = state.running
   helpOpen.value = true
+  boardOpen.value = false
+  historyOpen.value = false
   state.running = false
 }
 function closeHelp() {
   helpOpen.value = false
-  if (!state.gameOver) state.running = true
+  if (!panelOpen.value && !state.gameOver) state.running = resumeRunning
 }
 
 async function onGameOver() {
@@ -228,11 +255,11 @@ onMounted(async () => {
   resize()
   // 进入页面只渲染一帧静态背景（不启动循环），等用户点「开始游戏」
   const ctx = canvasRef.value?.getContext('2d')
-  if (ctx) draw(ctx, state, config, sprite)
+  if (ctx) draw(ctx, state, config, images)
   sprite.onload = () => {
     if (!started.value) {
       const c = canvasRef.value?.getContext('2d')
-      if (c) draw(c, state, config, sprite)
+      if (c) draw(c, state, config, images)
     }
   }
 
@@ -302,7 +329,7 @@ defineExpose({ togglePause, onSave: doSave })
       <div v-if="!started && !state.gameOver" class="cg-overlay">
         <div class="cg-start">
           <h3>千羽爬树</h3>
-          <p>3 棵树之间上爬、长按下键俯冲下滑，躲开往上爬的虫子并击落普通虫得分。</p>
+          <p>3 棵树之间上爬、长按下键俯冲下滑，躲开往上爬的虫子，击落「加班虫/熬夜虫」得分。</p>
           <BaseButton type="primary" @click="startGame">开始游戏</BaseButton>
         </div>
       </div>
@@ -315,9 +342,29 @@ defineExpose({ togglePause, onSave: doSave })
       <div v-if="helpOpen" class="cg-overlay">
         <div class="cg-help">
           <h3>玩法说明</h3>
-          <ul>
+          <ul class="cg-help__rules">
             <li v-for="(t, i) in config.help" :key="i">{{ t }}</li>
           </ul>
+
+          <h4>虫子图鉴</h4>
+          <ul class="cg-help__codex">
+            <li v-for="b in config.bugs.types" :key="b.key">
+              <img v-if="images.bugs[b.key]" :src="images.bugs[b.key].src" class="cg-help__ico" :alt="b.name" />
+              <span class="cg-help__name">{{ b.name }}</span>
+              <span class="cg-help__tag" :class="b.killable ? 'is-kill' : 'is-dodge'">{{ b.killable ? '可击落' : '需躲避' }}</span>
+              <span class="cg-help__desc">{{ b.desc }}</span>
+            </li>
+          </ul>
+
+          <h4>掉落物图鉴</h4>
+          <ul class="cg-help__codex">
+            <li v-for="it in config.items.types" :key="it.key">
+              <img v-if="images.items[it.key]" :src="images.items[it.key].src" class="cg-help__ico" :alt="it.name" />
+              <span class="cg-help__name">{{ it.name }}</span>
+              <span class="cg-help__desc">{{ it.desc }}</span>
+            </li>
+          </ul>
+
           <BaseButton type="primary" @click="closeHelp">继续游戏</BaseButton>
         </div>
       </div>
@@ -401,6 +448,7 @@ defineExpose({ togglePause, onSave: doSave })
   align-items: center;
   padding: 10px 14px;
   pointer-events: none;
+  z-index: 10; /* 始终在遮罩层之上，暂停时也能点按钮 */
 }
 .cg-hearts {
   display: flex;
@@ -610,18 +658,27 @@ defineExpose({ togglePause, onSave: doSave })
   gap: 16px;
   background: rgba(40, 30, 20, 0.55);
   backdrop-filter: blur(2px);
+  z-index: 5;
 }
 .cg-overlay__title {
   color: #fff;
   font-size: 24px;
   font-family: var(--font-display);
 }
-.cg-help,
 .cg-over {
   background: var(--surface);
   border-radius: var(--radius);
   padding: 20px 22px;
   max-width: 86%;
+  text-align: left;
+}
+.cg-help {
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 20px 22px;
+  width: min(420px, 90%);
+  max-height: 86%;
+  overflow-y: auto;
   text-align: left;
 }
 .cg-start {
@@ -647,12 +704,69 @@ defineExpose({ togglePause, onSave: doSave })
   margin: 0 0 10px;
   font-family: var(--font-display);
 }
-.cg-help ul {
+.cg-help__rules {
   margin: 0 0 14px;
   padding-left: 18px;
   color: var(--text);
   font-size: 13px;
   line-height: 1.7;
+}
+.cg-help h4 {
+  margin: 14px 0 6px;
+  font-family: var(--font-display);
+  color: var(--primary);
+  font-size: 15px;
+}
+.cg-help__codex {
+  list-style: none;
+  margin: 0 0 10px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.cg-help__codex li {
+  display: grid;
+  grid-template-columns: 30px auto 1fr;
+  grid-template-areas:
+    'ico name tag'
+    'ico desc desc';
+  gap: 2px 8px;
+  align-items: center;
+  padding: 6px 8px;
+  border-radius: 10px;
+  background: rgba(91, 140, 123, 0.08);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.cg-help__ico {
+  grid-area: ico;
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+}
+.cg-help__name {
+  grid-area: name;
+  font-weight: 700;
+}
+.cg-help__tag {
+  grid-area: tag;
+  justify-self: start;
+  font-size: 11px;
+  padding: 1px 7px;
+  border-radius: 999px;
+}
+.cg-help__tag.is-kill {
+  background: rgba(63, 143, 58, 0.18);
+  color: #3f8f3a;
+}
+.cg-help__tag.is-dodge {
+  background: rgba(214, 48, 49, 0.15);
+  color: #d63031;
+}
+.cg-help__desc {
+  grid-area: desc;
+  color: var(--text);
 }
 .cg-over p {
   margin: 0 0 14px;

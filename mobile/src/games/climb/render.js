@@ -15,7 +15,7 @@ export function laneX(lane, cfg) {
   return treeX(treeIndex, cfg) + side * cfg.world.sideOffset
 }
 
-export function draw(ctx, state, cfg, sprite) {
+export function draw(ctx, state, cfg, images) {
   const W = cfg.view.width
   const H = cfg.view.height
   if (!W || !H) return
@@ -94,7 +94,7 @@ export function draw(ctx, state, cfg, sprite) {
     }
   } catch (e) { renderError(ctx, W, H, 'tree', e); return }
 
-  // 道具（带光晕的图标：心=回血，盾=护盾）
+  // 道具（带光晕；贴图优先，缺图回退到代码绘制）
   try {
     const isz = cfg.items.size
     for (const item of state.items) {
@@ -107,24 +107,33 @@ export function draw(ctx, state, cfg, sprite) {
       ctx.arc(item.x, sy, isz * 0.72, 0, Math.PI * 2)
       ctx.fill()
       ctx.restore()
-      drawItem(ctx, item.x, sy, item, isz)
+      const img = images?.items?.[item.type]
+      if (img && img.complete && img.naturalWidth) drawImageItem(ctx, item.x, sy, isz, img)
+      else drawItem(ctx, item.x, sy, item, isz)
     }
   } catch (e) { /* 道具失败不阻断 */ }
 
-  // 虫子（按所在 lane 定位在该树左/右侧）
+  // 虫子（按所在 lane 定位在该树左/右侧；贴图优先，缺图回退到代码绘制）
   try {
+    const bscale = cfg.bugs.imageScale || 1
     for (const bug of state.bugs) {
       const sy = H - bug.y
       if (sy < -30 || sy > H + 30) continue
       const x = laneX(bug.lane, cfg)
-      if (bug.killable) drawBug(ctx, x, sy, bug.radius, bug.color)
+      const img = images?.bugs?.[bug.type]
+      if (img && img.complete && img.naturalWidth) {
+        const s = bug.radius * 2.4 * bscale // 按 imageScale 放大贴图
+        const flip = bug.lane % 2 === 1 // 树右侧 → 水平翻转贴图，面向树干
+        drawImageBug(ctx, x, sy, s, img, flip)
+      }
+      else if (bug.killable) drawBug(ctx, x, sy, bug.radius, bug.color)
       else drawArmored(ctx, x, sy, bug.radius, bug.color)
     }
   } catch (e) { /* 虫子失败不阻断 */ }
 
   // 人物
   try {
-    drawCharacter(ctx, state, cfg, sprite)
+    drawCharacter(ctx, state, cfg, images ? images.sprite : null)
   } catch (e) { renderError(ctx, W, H, 'char', e) }
 
   // 飘字提示（击落/扣血/接道具）
@@ -299,6 +308,19 @@ function drawArmored(ctx, x, y, r, color) {
   ctx.stroke()
 }
 
+// 用用户提供的贴图绘制虫子 / 掉落物（缺图时由 drawBug/drawArmored/drawItem 回退）
+function drawImageBug(ctx, x, y, s, img, flip) {
+  ctx.save()
+  ctx.translate(x, y)
+  if (flip) ctx.scale(-1, 1) // 树右侧水平翻转，面向树干
+  ctx.drawImage(img, -s / 2, -s / 2, s, s)
+  ctx.restore()
+}
+function drawImageItem(ctx, x, y, size, img) {
+  const s = size * 1.15
+  ctx.drawImage(img, x - s / 2, y - s / 2, s, s)
+}
+
 function drawBadge(ctx, x, y, color, label, size = 36) {
   ctx.save()
   ctx.fillStyle = color
@@ -315,9 +337,9 @@ function drawBadge(ctx, x, y, color, label, size = 36) {
   ctx.restore()
 }
 
-// 掉落物图标：回血=心形，护盾=盾形（比单纯色块更直观）
+// 掉落物图标（缺图时的回退绘制）：回血=心形，护盾=盾形
 function drawItem(ctx, x, y, item, size) {
-  if (item.type === 'heal') drawHeart(ctx, x, y, size * 0.5, item.color)
+  if (item.effect === 'heal') drawHeart(ctx, x, y, size * 0.5, item.color)
   else drawShieldIcon(ctx, x, y, size * 0.48, item.color)
 }
 

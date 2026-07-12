@@ -73,6 +73,7 @@ export function createInitialState(cfg, saved) {
     h: cfg.view.height * 0.5,
     hp: cfg.character.maxHp,
     score: 0,
+    bugScore: 0, // 击虫累计分（按虫种：加班+5/熬夜+3），与 timeSurvived 一起算总分
     bugsKilled: 0,
     timeSurvived: 0,
     startedAt: null, // 本局真实开局时间戳（毫秒）；用于历史记录展示“开始时间”，不影响玩法
@@ -115,6 +116,7 @@ export function serialize(state) {
     h: state.h,
     hp: state.hp,
     score: state.score,
+    bugScore: state.bugScore || 0,
     bugsKilled: state.bugsKilled,
     timeSurvived: state.timeSurvived,
     shieldRemainingMs: state.shieldRemainingMs,
@@ -126,6 +128,7 @@ export function serialize(state) {
 export function buildResult(state) {
   return {
     score: state.score,
+    bugScore: state.bugScore || 0,
     bugsKilled: state.bugsKilled,
     timeSurvived: Math.round(state.timeSurvived),
     hpLeft: state.hp,
@@ -160,6 +163,9 @@ function spawnBug(state, cfg) {
     killable: t.killable,
     color: t.color,
     radius: t.radius,
+    score: t.score || 0, // 击落得分（热水虫=0，不可击落）
+    touch: t.touch || '', // 碰到（未攻击）时冒出的吐槽
+    image: t.image || '', // 虫子贴图（渲染层按需加载）
     y: -20 - Math.random() * 60,
     speedJitter: Math.random() * cfg.bugs.speedJitter,
   })
@@ -186,8 +192,10 @@ function spawnItem(state, cfg) {
   state.items.push({
     id: state.nextId++,
     type: t.key,
+    effect: t.effect, // 'shield' / 'heal'
     color: t.color,
     name: t.name,
+    image: t.image || '', // 掉落物贴图（渲染层按需加载）
     gap: gapIndex,
     x,
     y: cfg.view.height + cfg.items.size / 2 + Math.random() * 40,
@@ -218,10 +226,11 @@ function spawnFloater(state, cfg, x, yWorld, text, color, big) {
 }
 
 // 计分（前后端共用同一公式，保证一致；始终为数值，绝不拼接）
+// 总分 = 击虫累计分(bugScore，按虫种：加班+5/熬夜+3) + 存活时间/2
+// 用四舍五入后的 timeSurvived 计时间分，与服务端校验口径一致，避免四舍五入误差导致成绩被拒
 export function computeScore(s) {
-  const kill = (s.bugsKilled | 0) * 10
-  const time = Math.floor((s.timeSurvived || 0) / 2)
-  return kill + time
+  const time = Math.floor(Math.round(s.timeSurvived || 0) / 2)
+  return (s.bugScore | 0) + time
 }
 
 // 推进一帧；返回事件数组（用于音效/特效，可忽略）
@@ -322,7 +331,8 @@ export function step(state, dt, input, cfg) {
       if (bug.killable && state.attacking) {
         state.bugs.splice(i, 1)
         state.bugsKilled += 1
-        spawnFloater(state, cfg, laneX(bug.lane, cfg), bug.y, '击落 +10', '#3f8f3a', true)
+        state.bugScore += bug.score || 0
+        spawnFloater(state, cfg, laneX(bug.lane, cfg), bug.y, `击落 +${bug.score}`, '#3f8f3a', true)
         events.push({ type: 'kill', bug })
         continue
       }
@@ -338,7 +348,7 @@ export function step(state, dt, input, cfg) {
         state.hitFlash = 0.35
         state.attacking = false
         state.bugs.splice(i, 1)
-        spawnFloater(state, cfg, cxBody, state.h + charH * 0.5, '-1 ♥', '#e74c3c', true)
+        spawnFloater(state, cfg, cxBody, state.h + charH * 0.5, bug.touch || '-1 ♥', '#e74c3c', true)
         events.push({ type: 'damage', bug })
         if (state.hp <= 0) {
           state.gameOver = true
@@ -359,13 +369,13 @@ export function step(state, dt, input, cfg) {
     const isz = cfg.items.size
     const itemRect = { x: item.x - isz / 2, y: item.y - isz / 2, w: isz, h: isz }
     if (rectsOverlap(charRect, itemRect, -cfg.items.catchReach)) {
-      if (item.type === 'shield') {
-        const def = cfg.items.types.find((t) => t.key === 'shield')
+      if (item.effect === 'shield') {
+        const def = cfg.items.types.find((t) => t.key === item.type)
         state.shieldCount = def ? def.effectValue : 1
         state.shieldRemainingMs = def ? def.durationMs : 10000
         spawnFloater(state, cfg, item.x, item.y, '护盾!', '#3f7cac', false)
-      } else if (item.type === 'heal') {
-        const def = cfg.items.types.find((t) => t.key === 'heal')
+      } else if (item.effect === 'heal') {
+        const def = cfg.items.types.find((t) => t.key === item.type)
         state.hp = Math.min(cfg.character.maxHp, state.hp + (def ? def.heal : 1))
         spawnFloater(state, cfg, item.x, item.y, '+1 ♥', '#c9743b', false)
       }
