@@ -193,6 +193,10 @@ async function restart() {
   state.startedAt = Date.now()
   state.running = true
   autoSaveAcc = 0
+  // 关闭可能残留的面板，避免遮罩盖住新一局导致“点再来一局立刻死”
+  helpOpen.value = false
+  boardOpen.value = false
+  historyOpen.value = false
 }
 
 function onVisibility() {
@@ -285,7 +289,7 @@ defineExpose({ togglePause, onSave: doSave })
         </div>
       </div>
 
-      <div v-if="!started && !state.gameOver" class="cg-overlay">
+      <div v-if="!started && !state.gameOver" class="cg-overlay cg-overlay--start">
         <div class="cg-start">
           <h3>像素鸟</h3>
           <p>点击屏幕让小鸟拍翅向上，穿过管道缝隙得分，撞到或落地就结束。比谁飞得更远~</p>
@@ -293,12 +297,12 @@ defineExpose({ togglePause, onSave: doSave })
         </div>
       </div>
 
-      <div v-if="paused" class="cg-overlay">
+      <div v-if="paused" class="cg-overlay cg-overlay--pause">
         <p class="cg-overlay__title">已暂停</p>
         <BaseButton type="primary" @click="togglePause">继续游戏</BaseButton>
       </div>
 
-      <div v-if="helpOpen" class="cg-overlay">
+      <div v-if="helpOpen" class="cg-overlay cg-overlay--help">
         <div class="cg-panel cg-panel--help">
           <div class="cg-panel__body">
             <h3>玩法说明</h3>
@@ -312,7 +316,7 @@ defineExpose({ togglePause, onSave: doSave })
         </div>
       </div>
 
-      <div v-if="state.gameOver" class="cg-overlay">
+      <div v-if="state.gameOver" class="cg-overlay cg-overlay--over">
         <div class="cg-over">
           <h3>本局结束</h3>
           <p>得分 <b>{{ lastResult.score }}</b> · 飞过 <b>{{ lastResult.pipesPassed }}</b> 根管道</p>
@@ -320,7 +324,7 @@ defineExpose({ togglePause, onSave: doSave })
         </div>
       </div>
 
-      <div v-if="boardOpen" class="cg-overlay">
+      <div v-if="boardOpen" class="cg-overlay cg-overlay--board">
         <div class="cg-panel cg-panel--board">
           <div class="cg-panel__body">
             <h3>排行榜</h3>
@@ -340,7 +344,7 @@ defineExpose({ togglePause, onSave: doSave })
         </div>
       </div>
 
-      <div v-if="historyOpen" class="cg-overlay">
+      <div v-if="historyOpen" class="cg-overlay cg-overlay--hist">
         <div class="cg-panel cg-panel--hist">
           <div class="cg-panel__body">
             <h3>我的历史</h3>
@@ -447,8 +451,13 @@ defineExpose({ togglePause, onSave: doSave })
   gap: 16px;
   background: rgba(40, 30, 20, 0.55);
   backdrop-filter: blur(2px);
-  z-index: 5;
+  z-index: 5; /* 默认层级 = 开始/结束遮罩 */
 }
+/* 遮罩层级（低→高）：开始/结束(5) < 暂停(6) < 帮助(7) < 历史(8) < 榜单(9)；HUD(10) 与横屏提示(30) 更高 */
+.cg-overlay--pause { z-index: 6; }
+.cg-overlay--help { z-index: 7; }
+.cg-overlay--hist { z-index: 8; }
+.cg-overlay--board { z-index: 9; }
 .cg-overlay__title {
   color: #fff;
   font-size: 24px;

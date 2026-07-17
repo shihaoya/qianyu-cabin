@@ -12,7 +12,7 @@ export default buildFlyConfig(assets, {
     spacing: 300,
     speed: 160,
   },
-  bird: {
-    scale: 0.3,
+  character: {
+    scale: 0.3, // 写在 character 下才会被 render/engine 读取（base 同值，此处显式声明保持一致）
   },
 })
