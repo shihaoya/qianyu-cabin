@@ -14,6 +14,16 @@ export const GAME_DEFS = [
       { label: '剩心', value: detail?.hpLeft ?? '-' },
     ],
   },
+  {
+    key: 'fly',
+    name: '飞扬的千羽',
+    icon: 'fly',
+    scoreLabel: '得分',
+    formatDetail: (detail) => [
+      { label: '飞过管道', value: detail?.pipesPassed != null ? `${detail.pipesPassed} 根` : '-' },
+      { label: '时长', value: detail?.timeSurvived != null ? `${detail.timeSurvived}s` : '-' },
+    ],
+  },
 ]
 
 // 注入平台专属组件，构建最终注册表（component 由各端提供，元信息只写一份）
