@@ -37,15 +37,20 @@ const props = defineProps({
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  /* 供竖屏全屏游戏参考：顶部导航占用的高度（含刘海安全区），游戏旋转区需减掉它 */
+  --gs-head-h: calc(48px + env(safe-area-inset-top, 0px));
 }
 .gs-head {
   flex: none;
+  height: var(--gs-head-h);
+  box-sizing: border-box;
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 10px 14px;
+  padding: 0 14px;
   background: var(--surface);
   box-shadow: var(--shadow);
+  position: relative; /* 让 z-index 生效，浮在竖屏全屏游戏画面之上 */
   z-index: 2;
 }
 .gs-back {
