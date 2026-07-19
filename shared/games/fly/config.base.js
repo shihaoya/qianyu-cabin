@@ -81,7 +81,7 @@ export function buildFlyConfig(assets, overrides = {}) {
 
     // ── 调试可视化 ──
     debug: {
-      showHitbox: true, // 画出碰撞盒（红框）：与引擎判定完全一致，方便核对「碰到却没反应」；调试完改 false 关闭
+      showHitbox: false, // 画出碰撞盒（红框）：与引擎判定完全一致，方便核对「碰到却没反应」；调试完改 false 关闭
     },
 
     // ── 玩法说明（问号悬浮层）──
