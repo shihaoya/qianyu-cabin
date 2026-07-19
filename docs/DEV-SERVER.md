@@ -105,11 +105,17 @@ server/
 | 1005 | 403 | 无权限（非管理角色） | requireAdmin 中间件（requireCap('manageUsers')） |
 | 1006 | 401 | 原密码不正确 | 修改密码 `POST /auth/change-password` |
 | 1007 | 404 | 游戏不存在（gameKey 未注册） | 游戏相关接口 `GET/PUT/POST/DELETE /api/games/:key/*` |
-| 1008 | 400 | 存档状态非法（engine.validateState 失败） | `PUT /api/games/:key/save` |
+| 1008 | 400 | （已废弃）原「存档状态非法」；`PUT /api/games/:key/save` 现已改为**不校验、原样存储**（前端传什么存什么），此码不再返回，保留登记 | `PUT /api/games/:key/save` |
 | 1009 | 400 | 游戏结果非法（engine.validateResult 失败） | `POST /api/games/:key/records` |
 | 5000 | 500 | 服务端未知错误 | 错误中间件 |
 
 > 新增业务错误码时，在此表登记并在对应接口文档/注释说明，保证 PC/移动端一致。
+
+### 游戏存档接口：不校验、原样存
+
+`PUT /api/games/:key/save` 只做「游戏存在性」确认，**不对上报的 `state` 做任何业务校验**，前端传什么就 `JSON.stringify` 原样入库（`score`/`platform` 也原样保留，仅做 DB 类型兜底，不拒绝、不归一化）。理由：存档是用户自己的「续玩」数据，跨端续玩要求状态完整可逆，后端不应因形状判断而丢弃合法存档。
+
+与之区分：`POST /api/games/:key/records`（结束一局上报成绩）仍走 `engine.validateResult` + `engine.score` 算分入库——这是排行榜防作弊的单一真源，**保留校验**，不受影响。
 
 **错误响应契约（前端归一化依赖此约定）**：无论 HTTP 状态是 2xx 还是 4xx/5xx，响应体一律是 `{ code, data:null, message }`，`message` 必须是可直接展示给用户的中文文案。前端响应拦截器据此在「业务失败（2xx+code≠0）」和「HTTP 失败（非 2xx）」两种情况下都能取到 `message` 并归一化展示（见 `DEV-PC.md` §6/§8）。因此后端**禁止**返回没有 `message` 的裸错误、或仅靠 HTTP 状态码表意；未知错误统一 `5000 + 通用中文文案`，不泄漏堆栈。
 

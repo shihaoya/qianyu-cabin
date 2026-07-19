@@ -5,6 +5,27 @@
 
 export const GAME_OVER = 'gameOver'
 
+// 把存档里的单根管道按「当前屏幕」重新夹到合法范围，并重算 gapTop/gapBottom。
+// 解决：在高屏生成的存档换到矮屏加载时，gapCenter 越界导致 gapTop > gapBottom（管道变实心）。
+function clampPipeToScreen(p, cfg) {
+  const H = cfg.view.height
+  const groundY = H - cfg.world.groundHeight
+  const margin = cfg.pipes.gapMargin
+  let gapSize = Number.isFinite(p.gapBottom - p.gapTop) ? p.gapBottom - p.gapTop : NaN
+  if (!Number.isFinite(gapSize) || gapSize <= 0) gapSize = cfg.pipes.gapMin ?? cfg.pipes.gap
+  gapSize = Math.max(1, Math.min(gapSize, groundY - 2 * margin)) // 不超过可用高度
+  let center = Number.isFinite((p.gapTop + p.gapBottom) / 2) ? (p.gapTop + p.gapBottom) / 2 : groundY / 2
+  const minC = margin + gapSize / 2
+  const maxC = groundY - margin - gapSize / 2
+  center = Math.max(minC, Math.min(maxC, center))
+  return {
+    ...p,
+    gapCenter: center,
+    gapTop: Math.max(0, center - gapSize / 2),
+    gapBottom: Math.min(groundY, center + gapSize / 2),
+  }
+}
+
 // 新建一局状态；saved 存在时在其基础上恢复（续玩）
 export function createInitialState(cfg, saved) {
   const W = cfg.view.width
@@ -25,7 +46,7 @@ export function createInitialState(cfg, saved) {
   if (saved && typeof saved === 'object') {
     base.birdY = Number.isFinite(saved.birdY) ? saved.birdY : H * 0.42
     base.vy = Number.isFinite(saved.vy) ? saved.vy : 0
-    base.pipes = Array.isArray(saved.pipes) ? saved.pipes.map((p) => ({ ...p })) : []
+    base.pipes = Array.isArray(saved.pipes) ? saved.pipes.map((p) => clampPipeToScreen(p, cfg)) : []
     base.score = Number.isFinite(saved.score) ? saved.score : 0
     base.pipesPassed = Number.isFinite(saved.pipesPassed) ? saved.pipesPassed : 0
     base.timeSurvived = Number.isFinite(saved.timeSurvived) ? saved.timeSurvived : 0
@@ -164,14 +185,43 @@ function gameOver(state, events) {
   events.push({ type: GAME_OVER })
 }
 
-function spawnPipe(state, cfg, x) {
+export function spawnPipe(state, cfg, x) {
   const H = cfg.view.height
   const groundY = H - cfg.world.groundHeight
-  const gap = cfg.pipes.gap
-  const margin = cfg.pipes.gapMargin // 缺口中心离顶/离地的最小距离
-  const minC = margin
-  const maxC = groundY - margin
-  const center = minC + Math.random() * Math.max(1, maxC - minC)
+  const gMin = cfg.pipes.gapMin ?? cfg.pipes.gap
+  const gMax = cfg.pipes.gapMax ?? cfg.pipes.gap
+  const maxShift = cfg.pipes.maxGapShift ?? 200
+
+  // 边缘留白：屏幕够高时用配置的 gapMargin；屏幕偏矮时自动收紧，
+  // 给缝隙留出「上下移动」的空间——否则缝隙占满整屏、中心无法变化，相邻管道就全一样（不随机）。
+  // 目标：即使取最小缝隙 gMin，中心可行区间也至少 >= maxShift（能出现「一个在顶、一个在底」）。
+  const margin = Math.max(16, Math.min(cfg.pipes.gapMargin, (groundY - gMin) / 2 - maxShift / 2))
+
+  // 随机缝隙大小：在 [gMin, gMax] 间取值，但不超过「可用高度」(保证完整可见)，
+  // 也不超过「可用高度 - maxShift」(保证相邻缝隙中心还能上下移动 maxShift，产生顶/底差异)。
+  const usableH = groundY - 2 * margin
+  const effGapMax = Math.max(gMin, Math.min(gMax, usableH - maxShift))
+  let gap = gMin + Math.random() * Math.max(1, effGapMax - gMin)
+  if (gap > usableH) gap = usableH // 极端矮屏兜底：优先保证完整可见
+
+  // 缝隙中心可行区间：以「边缘」为基准留 margin（与 clampPipeToScreen 语义一致）。
+  const minC = margin + gap / 2
+  const maxC = groundY - margin - gap / 2
+
+  // 缝隙中心：
+  //  - 第一根完全随机（鸟在进场过程中有充足时间对准）
+  //  - 之后的每根，限制相对「上一根缝隙中心」的最大垂直位移 maxGapShift，
+  //    保证鸟在两根管道之间的水平时间内，垂直方向飞得过去（解决“穿过第一根就过不了第二根”）
+  let center
+  const prev = state.pipes[state.pipes.length - 1]
+  if (!prev || !Number.isFinite(prev.gapCenter)) {
+    center = minC + Math.random() * Math.max(1, maxC - minC)
+  } else {
+    const shift = (Math.random() * 2 - 1) * (cfg.pipes.maxGapShift ?? 200)
+    center = prev.gapCenter + shift
+  }
+  center = Math.max(minC, Math.min(maxC, center))
+
   // 随机粗细：在 [widthMin, widthMax] 间均匀取值（每根独立）
   const wMin = cfg.pipes.widthMin
   const wMax = cfg.pipes.widthMax
@@ -184,6 +234,7 @@ function spawnPipe(state, cfg, x) {
     x,
     width,
     spacing,
+    gapCenter: center,
     gapTop: Math.max(0, center - gap / 2),
     gapBottom: Math.min(groundY, center + gap / 2),
     scored: false,

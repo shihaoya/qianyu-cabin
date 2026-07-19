@@ -16,11 +16,15 @@ export default buildFlyConfig(assets, {
   },
   pipes: {
     gap: 160, // 缝隙收窄（base 200 / PC 210）
+    gapMin: 160, // 最小缝隙（> 鸟高 ~36px，保证可通过）
+    gapMax: 240, // 随机缝隙大小上限
+    gapMargin: 70,
+    maxGapShift: 200, // 相邻缝隙中心最大垂直位移（小屏纵向有限，取值比 PC 小）
     widthMin: 46, // 管道更细（base 58）
     widthMax: 84, // 最粗管道也明显小于 PC（base 108）
-    spacing: 230, // 默认水平间距
-    spacingMin: 200, // 最密（base 230）
-    spacingMax: 300, // 最疏（base 360），整体比 PC 紧凑
+    spacing: 260, // 默认水平间距
+    spacingMin: 230, // 最密（base 230）→ 调大最小间距，两根之间更从容
+    spacingMax: 340, // 最疏（base 360），整体比 PC 紧凑
     speed: 150, // 略慢，给小屏更多反应时间
   },
   world: {

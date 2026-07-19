@@ -12,7 +12,12 @@ import { onMounted, onBeforeUnmount, ref, reactive, computed, watch, nextTick } 
 import BaseButton from '../../components/base/BaseButton.vue'
 import { getGame } from '../../games/registry.js'
 import { useGameSave, submitGameRecord, useGameLeaderboard, useGameHistory } from '../../composables/useGame.js'
-import { confirm, alert } from '../../composables/useConfirm.js'
+import { createConfirmScope } from '../../composables/useConfirm.js'
+import ConfirmDialog from '../../components/base/ConfirmDialog.vue'
+
+// 飞鸟游戏专属弹框实例：挂在自身旋转后的 DOM 子树内，随游戏一起横过来；
+// 与全局 confirm 完全独立，不影响其它页面/游戏（彻底隔离）。
+const flyConfirm = createConfirmScope()
 import config from '../../games/fly/config.js'
 import { createInitialState, serialize, buildResult, step, flap, GAME_OVER } from '@cabin/games/fly/engine.js'
 import { draw } from '@cabin/games/fly/render.js'
@@ -88,11 +93,12 @@ let last = null
 let autoSaveAcc = 0
 let ctx2d = null
 
+
 function resize() {
   const c = canvasRef.value
   if (!c) return
   checkOrientation()
-  // 注意：竖屏时整块 .climb-game 被 rotate(90deg) 旋转，getBoundingClientRect() 会返回
+  // 注意：竖屏时整块 .fly-game 被 rotate(90deg) 旋转，getBoundingClientRect() 会返回
   // 旋转后的「视觉边界框」（宽高互换），与 canvas 的 CSS 布局尺寸不一致 → bitmap 被拉伸变形
   // （鸟被压扁）。改用 offsetWidth/offsetHeight：它返回未受 transform 影响的「布局尺寸」，正确。
   const w = c.offsetWidth
@@ -186,7 +192,7 @@ async function onGameOver() {
     await save.clear()
     emit('finished')
   } catch (e) {
-    await alert({ title: '提交失败', message: e.message || '成绩上传失败' })
+    await flyConfirm.alert({ title: '提交失败', message: e.message || '成绩上传失败' })
   }
 }
 
@@ -235,7 +241,7 @@ async function startGame() {
   const existing = pendingSave.value
   if (existing && existing.state) {
     const plat = existing.platform === 'mobile' ? '手机' : '电脑'
-    const ok = await confirm({
+    const ok = await flyConfirm.confirm({
       title: '继续上局？',
       message: `检测到上次在${plat}端的进度（得分 ${existing.score ?? 0}），要继续吗？`,
       confirmText: '继续',
@@ -268,84 +274,84 @@ defineExpose({ togglePause, onSave: doSave })
 </script>
 
 <template>
-  <div class="climb-game" :class="{ 'is-portrait': isPortrait }">
-    <div class="cg-stage">
-      <canvas ref="canvasRef" class="cg-canvas" @pointerdown.prevent="onTap" />
+  <div class="fly-game" :class="{ 'is-portrait': isPortrait }">
+    <div class="fly-stage">
+      <canvas ref="canvasRef" class="fly-canvas" @pointerdown.prevent="onTap" />
 
-      <div v-if="!started && !state.gameOver" class="cg-overlay cg-overlay--start">
-        <div class="cg-start">
+      <div v-if="!started && !state.gameOver" class="fly-overlay fly-overlay--start">
+        <div class="fly-start">
           <h3>像素鸟</h3>
           <p>点击屏幕让小鸟拍翅向上，穿过管道缝隙得分，撞到或落地就结束。比谁飞得更远~</p>
           <BaseButton type="primary" @click="startGame">开始游戏</BaseButton>
         </div>
       </div>
 
-      <div v-if="paused" class="cg-overlay cg-overlay--pause">
-        <p class="cg-overlay__title">已暂停</p>
+      <div v-if="paused" class="fly-overlay fly-overlay--pause">
+        <p class="fly-overlay__title">已暂停</p>
         <BaseButton type="primary" @click="togglePause">继续游戏</BaseButton>
       </div>
 
-      <div v-if="helpOpen" class="cg-overlay cg-overlay--help">
-        <div class="cg-panel cg-panel--help">
-          <div class="cg-panel__body">
+      <div v-if="helpOpen" class="fly-overlay fly-overlay--help">
+        <div class="fly-panel fly-panel--help">
+          <div class="fly-panel__body">
             <h3>玩法说明</h3>
-            <ul class="cg-help__rules">
+            <ul class="fly-help__rules">
               <li v-for="(t, i) in config.help" :key="i">{{ t }}</li>
             </ul>
           </div>
-          <div class="cg-panel__foot">
+          <div class="fly-panel__foot">
             <BaseButton type="primary" size="lg" @click="closeHelp">继续游戏</BaseButton>
           </div>
         </div>
       </div>
 
-      <div v-if="state.gameOver" class="cg-overlay cg-overlay--over">
-        <div class="cg-over">
+      <div v-if="state.gameOver" class="fly-overlay fly-overlay--over">
+        <div class="fly-over">
           <h3>本局结束</h3>
           <p>得分 <b>{{ lastResult.score }}</b> · 飞过 <b>{{ lastResult.pipesPassed }}</b> 根管道</p>
           <BaseButton type="primary" @click="restart">再来一局</BaseButton>
         </div>
       </div>
 
-      <div v-if="boardOpen" class="cg-overlay cg-overlay--board">
-        <div class="cg-panel cg-panel--board">
-          <div class="cg-panel__body">
+      <div v-if="boardOpen" class="fly-overlay fly-overlay--board">
+        <div class="fly-panel fly-panel--board">
+          <div class="fly-panel__body">
             <h3>排行榜</h3>
-            <ol class="cg-board__list">
-              <li v-for="row in boardList" :key="row.userId" class="cg-board__item">
-                <span class="cg-board__no">{{ row.rank }}</span>
-                <span class="cg-board__name">{{ row.nickname }}</span>
-                <span class="cg-board__plat">{{ platformLabel(row.platform) }}</span>
-                <span class="cg-board__score">{{ row.score }} {{ game.scoreLabel }}</span>
+            <ol class="fly-board__list">
+              <li v-for="row in boardList" :key="row.userId" class="fly-board__item">
+                <span class="fly-board__no">{{ row.rank }}</span>
+                <span class="fly-board__name">{{ row.nickname }}</span>
+                <span class="fly-board__plat">{{ platformLabel(row.platform) }}</span>
+                <span class="fly-board__score">{{ row.score }} {{ game.scoreLabel }}</span>
               </li>
-              <li v-if="!boardList.length" class="cg-board__empty">还没有记录，来抢第一名～</li>
+              <li v-if="!boardList.length" class="fly-board__empty">还没有记录，来抢第一名～</li>
             </ol>
           </div>
-          <div class="cg-panel__foot">
+          <div class="fly-panel__foot">
             <BaseButton type="primary" size="lg" @click="closeBoard">返回游戏</BaseButton>
           </div>
         </div>
       </div>
 
-      <div v-if="historyOpen" class="cg-overlay cg-overlay--hist">
-        <div class="cg-panel cg-panel--hist">
-          <div class="cg-panel__body">
+      <div v-if="historyOpen" class="fly-overlay fly-overlay--hist">
+        <div class="fly-panel fly-panel--hist">
+          <div class="fly-panel__body">
             <h3>我的历史</h3>
-            <div class="cg-hist__list">
-              <div v-for="row in historyList" :key="row.id" class="cg-hist__item">
-                <div class="cg-hist__top">
-                  <span class="cg-hist__score">{{ row.score }} {{ game.scoreLabel }}</span>
-                  <span class="cg-hist__alive">飞过 {{ row.detail?.pipesPassed ?? 0 }} 根</span>
+            <div class="fly-hist__list">
+              <div v-for="row in historyList" :key="row.id" class="fly-hist__item">
+                <div class="fly-hist__top">
+                  <span class="fly-hist__score">{{ row.score }} {{ game.scoreLabel }}</span>
+                  <span class="fly-hist__alive">飞过 {{ row.detail?.pipesPassed ?? 0 }} 根</span>
                 </div>
-                <div class="cg-hist__times">
+                <div class="fly-hist__times">
                   <span>开始 {{ formatDateTime(row.detail?.startedAt) }}</span>
                   <span>结束 {{ formatDateTime(row.finishedAt) }}</span>
                 </div>
               </div>
-              <p v-if="!historyList.length" class="cg-hist__empty">还没有历史记录，先玩一局吧～</p>
+              <p v-if="!historyList.length" class="fly-hist__empty">还没有历史记录，先玩一局吧～</p>
             </div>
           </div>
-          <div class="cg-panel__foot">
+          <div class="fly-panel__foot">
             <BaseButton type="primary" size="lg" @click="closeHistory">返回游戏</BaseButton>
           </div>
         </div>
@@ -353,35 +359,38 @@ defineExpose({ togglePause, onSave: doSave })
 
     </div>
 
-    <div class="cg-hud">
-      <div class="cg-score-big">{{ state.score }}</div>
-      <div class="cg-right">
-        <span class="cg-time">{{ formatTime(state.timeSurvived) }}</span>
-        <button class="cg-board-btn" title="排行榜" @click="openBoard">榜</button>
-        <button class="cg-board-btn" title="历史记录" @click="openHistory">史</button>
-        <button class="cg-help-btn" title="玩法说明" @click="openHelp">?</button>
-        <button class="cg-help-btn" title="暂停" @click="togglePause">⏸</button>
+    <div class="fly-hud">
+      <div class="fly-score-big">{{ state.score }}</div>
+      <div class="fly-right">
+        <span class="fly-time">{{ formatTime(state.timeSurvived) }}</span>
+        <button class="fly-board-btn" title="排行榜" @click="openBoard">榜</button>
+        <button class="fly-board-btn" title="历史记录" @click="openHistory">史</button>
+        <button class="fly-help-btn" title="玩法说明" @click="openHelp">?</button>
+        <button class="fly-help-btn" title="暂停" @click="togglePause">⏸</button>
       </div>
     </div>
+
+    <!-- 局部弹框：挂在本组件内，随飞鸟游戏旋转一起横过来；使用独立实例，与全局弹框完全隔离 -->
+    <ConfirmDialog :scope="flyConfirm" />
   </div>
 </template>
 
 <style scoped>
-.climb-game {
+.fly-game {
   width: 100%;
   height: 100%;
   display: flex;
   flex-direction: column;
   overflow: hidden;
 }
-.cg-stage {
+.fly-stage {
   position: relative;
   flex: 1;
   min-height: 50vh;
   width: 100%;
   overflow: hidden;
 }
-.cg-canvas {
+.fly-canvas {
   display: block;
   width: 100%;
   height: 100%;
@@ -391,7 +400,7 @@ defineExpose({ togglePause, onSave: doSave })
    旋转前盒子 宽=(视觉高)=100vh-导航高、高=(视觉宽)=100vw；旋转中心落在
    (50vw, 导航高+(视口高-导航高)/2)，使旋转后游戏区视觉上铺满导航下方的剩余空间，
    既不占满顶栏、也不被顶栏遮挡。 */
-.climb-game.is-portrait {
+.fly-game.is-portrait {
   position: fixed;
   top: calc(var(--gs-head-h, 48px) + (100vh - var(--gs-head-h, 48px)) / 2);
   left: 50vw;
@@ -401,7 +410,7 @@ defineExpose({ togglePause, onSave: doSave })
   transform-origin: center;
   z-index: 1;
 }
-.cg-hud {
+.fly-hud {
   position: absolute;
   top: 0;
   left: 0;
@@ -413,7 +422,7 @@ defineExpose({ togglePause, onSave: doSave })
   pointer-events: none;
   z-index: 10;
 }
-.cg-score-big {
+.fly-score-big {
   font-variant-numeric: tabular-nums;
   font-weight: 900;
   font-size: 40px;
@@ -421,13 +430,13 @@ defineExpose({ togglePause, onSave: doSave })
   text-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
   line-height: 1;
 }
-.cg-right {
+.fly-right {
   display: flex;
   align-items: center;
   gap: 8px;
   pointer-events: auto;
 }
-.cg-time {
+.fly-time {
   font-variant-numeric: tabular-nums;
   font-weight: 700;
   color: #fff;
@@ -435,8 +444,8 @@ defineExpose({ togglePause, onSave: doSave })
   padding: 2px 8px;
   border-radius: 999px;
 }
-.cg-board-btn,
-.cg-help-btn {
+.fly-board-btn,
+.fly-help-btn {
   width: 30px;
   height: 30px;
   border-radius: 50%;
@@ -446,11 +455,11 @@ defineExpose({ togglePause, onSave: doSave })
   font-weight: 700;
   cursor: pointer;
 }
-.cg-board-btn:active,
-.cg-help-btn:active {
+.fly-board-btn:active,
+.fly-help-btn:active {
   filter: brightness(0.9);
 }
-.cg-overlay {
+.fly-overlay {
   position: absolute;
   inset: 0;
   display: flex;
@@ -463,39 +472,39 @@ defineExpose({ togglePause, onSave: doSave })
   z-index: 5; /* 默认层级 = 开始/结束遮罩 */
 }
 /* 遮罩层级（低→高）：开始/结束(5) < 暂停(6) < 帮助(7) < 历史(8) < 榜单(9)；HUD(10) 与横屏提示(30) 更高 */
-.cg-overlay--pause { z-index: 6; }
-.cg-overlay--help { z-index: 7; }
-.cg-overlay--hist { z-index: 8; }
-.cg-overlay--board { z-index: 9; }
-.cg-overlay__title {
+.fly-overlay--pause { z-index: 6; }
+.fly-overlay--help { z-index: 7; }
+.fly-overlay--hist { z-index: 8; }
+.fly-overlay--board { z-index: 9; }
+.fly-overlay__title {
   color: #fff;
   font-size: 24px;
   font-family: var(--font-display);
 }
-.cg-over,
-.cg-start {
+.fly-over,
+.fly-start {
   background: var(--surface);
   border-radius: var(--radius);
   padding: 22px 24px;
   max-width: 86%;
   text-align: center;
 }
-.cg-start h3,
-.cg-over h3 {
+.fly-start h3,
+.fly-over h3 {
   margin: 0 0 10px;
   font-family: var(--font-display);
 }
-.cg-start p,
-.cg-over p {
+.fly-start p,
+.fly-over p {
   margin: 0 0 14px;
   color: var(--muted);
   font-size: 13px;
   line-height: 1.6;
 }
-.cg-over b {
+.fly-over b {
   color: var(--primary);
 }
-.cg-panel {
+.fly-panel {
   display: flex;
   flex-direction: column;
   background: var(--surface);
@@ -507,38 +516,38 @@ defineExpose({ togglePause, onSave: doSave })
   box-shadow: var(--shadow);
   text-align: left;
 }
-.cg-panel--help {
+.fly-panel--help {
   width: min(420px, 90%);
 }
-.cg-panel__body {
+.fly-panel__body {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   padding: 20px 22px;
 }
-.cg-panel__foot {
+.fly-panel__foot {
   flex-shrink: 0;
   display: flex;
   padding: 12px 22px;
   border-top: 1px solid rgba(0, 0, 0, 0.08);
 }
-.cg-panel__foot :deep(.base-btn) {
+.fly-panel__foot :deep(.base-btn) {
   width: 100%;
 }
-.cg-help__rules {
+.fly-help__rules {
   margin: 0;
   padding-left: 18px;
   color: var(--text);
   font-size: 13px;
   line-height: 1.7;
 }
-.cg-board h3,
-.cg-hist h3 {
+.fly-board h3,
+.fly-hist h3 {
   margin: 0 0 12px;
   font-family: var(--font-display);
 }
-.cg-board__list {
+.fly-board__list {
   list-style: none;
   margin: 0 0 4px;
   padding: 0;
@@ -546,7 +555,7 @@ defineExpose({ togglePause, onSave: doSave })
   flex-direction: column;
   gap: 6px;
 }
-.cg-board__item {
+.fly-board__item {
   display: grid;
   grid-template-columns: 26px 1fr auto;
   grid-template-areas: 'no name plat' 'no score score';
@@ -556,17 +565,17 @@ defineExpose({ togglePause, onSave: doSave })
   border-radius: 10px;
   background: rgba(91, 140, 123, 0.08);
 }
-.cg-board__no {
+.fly-board__no {
   grid-area: no;
   font-weight: 700;
   color: var(--primary);
   text-align: center;
 }
-.cg-board__name {
+.fly-board__name {
   grid-area: name;
   font-weight: 600;
 }
-.cg-board__plat {
+.fly-board__plat {
   grid-area: plat;
   font-size: 12px;
   padding: 1px 8px;
@@ -575,45 +584,45 @@ defineExpose({ togglePause, onSave: doSave })
   background: rgba(201, 116, 59, 0.18);
   color: var(--primary);
 }
-.cg-board__score {
+.fly-board__score {
   grid-area: score;
   font-size: 13px;
   color: var(--text);
 }
-.cg-board__empty {
+.fly-board__empty {
   color: var(--muted);
   font-size: 13px;
   text-align: center;
   padding: 16px 0;
 }
-.cg-hist__list {
+.fly-hist__list {
   margin: 0 0 4px;
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
-.cg-hist__item {
+.fly-hist__item {
   padding: 8px 10px;
   border-radius: 10px;
   background: rgba(91, 140, 123, 0.08);
 }
-.cg-hist__top {
+.fly-hist__top {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
   margin-bottom: 4px;
 }
-.cg-hist__score {
+.fly-hist__score {
   font-weight: 800;
   color: var(--primary);
   font-variant-numeric: tabular-nums;
 }
-.cg-hist__alive {
+.fly-hist__alive {
   font-size: 12px;
   color: var(--text);
   font-variant-numeric: tabular-nums;
 }
-.cg-hist__times {
+.fly-hist__times {
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -621,7 +630,7 @@ defineExpose({ togglePause, onSave: doSave })
   color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
-.cg-hist__empty {
+.fly-hist__empty {
   color: var(--muted);
   font-size: 13px;
   text-align: center;

@@ -30,13 +30,13 @@ export async function getSave(req, res) {
 
 export async function saveGame(req, res) {
   const { state, score, platform } = req.body || {}
-  if (!state) throw ERR.PARAM('存档状态不能为空')
+  // 存档不做业务校验：前端传什么存什么（原样转发给 service 序列化入库，便于跨端续玩）
   await gameService.upsertSave({
     userId: req.user.id,
     gameKey: req.params.key,
     state,
     score,
-    platform: platform === 'mobile' ? 'mobile' : 'pc',
+    platform,
   })
   return sendOk(res, null, '已存档')
 }

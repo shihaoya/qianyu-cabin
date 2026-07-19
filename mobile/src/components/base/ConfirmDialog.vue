@@ -1,7 +1,12 @@
 <script setup>
 import { useConfirm } from '../../composables/useConfirm.js'
 
-const { isOpen, mode, title, message, confirmText, cancelText, onOk, onCancel } = useConfirm()
+// 接收可选 scope：飞鸟游戏传入自己的独立实例（随游戏 DOM 旋转横过来）；
+// 不传则用全局默认实例（普通页面/其它游戏）。
+const props = defineProps({
+  scope: { type: Object, default: null },
+})
+const { isOpen, mode, title, message, confirmText, cancelText, onOk, onCancel } = useConfirm(props.scope)
 </script>
 
 <template>

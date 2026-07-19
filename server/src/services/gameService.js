@@ -12,22 +12,6 @@ function safeParse(s) {
   }
 }
 
-// 把「存档状态」压缩成可记录的摘要（不记完整 state，避免日志过大 / 泄露过多）
-function summarizeState(s) {
-  if (!s || typeof s !== 'object') return { invalid: 'not-object' }
-  return {
-    lane: s.lane,
-    h: s.h,
-    hp: s.hp,
-    score: s.score,
-    bugsKilled: s.bugsKilled,
-    timeSurvived: s.timeSurvived,
-    shieldRemainingMs: s.shieldRemainingMs,
-    bugs: Array.isArray(s.bugs) ? s.bugs.length : 'n/a',
-    items: Array.isArray(s.items) ? s.items.length : 'n/a',
-  }
-}
-
 // 把「游戏结果」压缩成可记录的摘要
 function summarizeResult(r) {
   if (!r || typeof r !== 'object') return { invalid: 'not-object' }
@@ -51,19 +35,15 @@ async function getEngineOrThrow(key) {
   return engine
 }
 
-// 存档：先 engine.validateState 再 upsert（唯一 [userId, gameKey]）
+// 存档：原样存储前端上报的状态，不做业务校验（前端传什么存什么，便于跨端续玩）。
+// 仅确认 gameKey 对应游戏存在；state 直接 JSON 序列化入库，score/platform 原样保留（仅做 DB 类型兜底，不拒绝）。
 export async function upsertSave({ userId, gameKey, state, score, platform }) {
-  const engine = await getEngineOrThrow(gameKey)
-  if (!engine.validateState(state)) {
-    // 校验失败必记日志：能直接看到哪个用户、哪个字段越界（如 score 远超 5*击虫数 = 前后端计分公式不一致）
-    log.warn('[SAVE_INVALID] 存档状态校验失败', { userId, gameKey, state: summarizeState(state) })
-    throw ERR.SAVE_INVALID()
-  }
+  await getEngineOrThrow(gameKey) // 仅确认游戏存在，不校验状态内容
   const data = {
     gameKey,
-    state: JSON.stringify(state),
+    state: state == null ? '{}' : JSON.stringify(state),
     score: typeof score === 'number' ? score : null,
-    platform: platform === 'mobile' ? 'mobile' : 'pc',
+    platform: typeof platform === 'string' && platform ? platform : 'pc',
   }
   await prisma.gameSave.upsert({
     where: { userId_gameKey: { userId, gameKey } },

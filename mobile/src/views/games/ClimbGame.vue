@@ -28,12 +28,6 @@ const helpOpen = ref(false)
 const lastResult = ref(null)
 const pendingSave = ref(null)
 
-// 竖屏检测：竖屏时整块游戏区用 CSS 旋转 90° 横过来游玩（无需系统横屏锁定，横向操作）
-const isPortrait = ref(false)
-function checkOrientation() {
-  isPortrait.value = window.innerHeight > window.innerWidth
-}
-
 // 游戏内面板（排行榜 / 历史 / 说明）互斥弹出；暂停时也能打开，关闭后回到打开前的状态
 const game = getGame(props.gameKey)
 const boardOpen = ref(false)
@@ -111,10 +105,6 @@ let ctx2d = null // 缓存 2D context，避免每帧 getContext
 function resize() {
   const c = canvasRef.value
   if (!c) return
-  checkOrientation()
-  // 注意：竖屏时整块 .climb-game 被 rotate(90deg) 旋转，getBoundingClientRect() 返回的是旋转后的
-  // 「视觉边界框」（宽高互换），与 canvas 的 CSS 布局尺寸不一致 → bitmap 被拉伸（角色压扁）。
-  // 改用 offsetWidth/offsetHeight：返回未受 transform 影响的「布局尺寸」，比例才正确。
   const w = c.offsetWidth
   const h = c.offsetHeight
   if (!w || !h) return
@@ -257,9 +247,6 @@ onMounted(async () => {
   document.addEventListener('visibilitychange', onVisibility)
   window.addEventListener('resize', resize)
   window.addEventListener('orientationchange', resize)
-  // 方向变化时，等 DOM 应用 is-portrait 旋转布局后再量 canvas，rect 才准确
-  watch(isPortrait, () => resize())
-  checkOrientation()
   await nextTick()
 
   // 让画布填满整个舞台（整页即游戏）
@@ -312,7 +299,7 @@ defineExpose({ togglePause, onSave: doSave })
 </script>
 
 <template>
-  <div class="climb-game" :class="{ 'is-portrait': isPortrait }">
+  <div class="climb-game">
     <div class="cg-stage">
       <canvas ref="canvasRef" class="cg-canvas" />
 
@@ -447,30 +434,6 @@ defineExpose({ togglePause, onSave: doSave })
   display: flex;
   flex-direction: column;
   overflow: hidden;
-}
-/* 竖屏：整块游戏区（画面 + HUD + 遮罩 + 虚拟按键）一起旋转 90° 横过来，落于顶部导航之下。
-   旋转前盒子 宽=(视觉高)=100vh-导航高、高=(视觉宽)=100vw；旋转中心落在
-   (50vw, 导航高+(视口高-导航高)/2)，使旋转后游戏区视觉上铺满导航下方的剩余空间，
-   既不占满顶栏、也不被顶栏遮挡。 */
-.climb-game.is-portrait {
-  position: fixed;
-  top: calc(var(--gs-head-h, 48px) + (100vh - var(--gs-head-h, 48px)) / 2);
-  left: 50vw;
-  width: calc(100vh - var(--gs-head-h, 48px)); /* 旋转前宽 → 视觉高（减掉导航） */
-  height: 100vw; /* 旋转前高 → 视觉宽 = 屏宽 */
-  transform: translate(-50%, -50%) rotate(90deg);
-  transform-origin: center;
-  z-index: 1;
-}
-/* 竖屏：虚拟按键脱离 flex 流，画面满铺不被压缩；按键浮在整块底部（旋转后落在屏幕一侧）横排，横向操作 */
-.climb-game.is-portrait .cg-pad {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: calc(12px + env(safe-area-inset-bottom, 0px));
-  margin: 0;
-  width: auto;
-  max-width: none;
 }
 .cg-stage {
   position: relative;

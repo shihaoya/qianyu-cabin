@@ -9,7 +9,13 @@ const assets = { sprite }
 export default buildFlyConfig(assets, {
   pipes: {
     gap: 210,
-    spacing: 300,
+    gapMin: 160, // 最小缝隙（> 鸟高 ~67px，保证可通过）
+    gapMax: 250, // 随机缝隙大小上限
+    gapMargin: 70,
+    maxGapShift: 300, // 相邻缝隙中心最大垂直位移（< 最小间距时间内可爬升距离，保证可达）
+    spacing: 320,
+    spacingMin: 280, // 调大最小间距，两根之间更从容
+    spacingMax: 400,
     speed: 160,
   },
   character: {

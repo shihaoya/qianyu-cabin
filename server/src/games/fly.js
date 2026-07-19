@@ -16,8 +16,10 @@ export default {
   validateState(state) {
     if (!state || typeof state !== 'object') return false
     const { birdY, vy, score, pipesPassed, timeSurvived } = state
-    if (![birdY, vy, score, pipesPassed, timeSurvived].every((v) => Number.isFinite(v) && v >= 0))
-      return false
+    // 位置/速度可为任意有限数：vy 拍翅向上时为负，birdY 在屏幕内（可能贴顶为 0）
+    if (![birdY, vy].every((v) => Number.isFinite(v))) return false
+    // 累计计数不得为负（负值为损坏 / 篡改）
+    if (![score, pipesPassed, timeSurvived].every((v) => Number.isFinite(v) && v >= 0)) return false
     if (!Array.isArray(state.pipes)) return false
     for (const p of state.pipes) {
       if (!p || typeof p !== 'object') return false
