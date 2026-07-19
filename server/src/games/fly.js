@@ -29,15 +29,19 @@ export default {
     return true
   },
 
-  // 校验「结束结果元组」是否自洽。娱乐向小游戏，只拦明显非法的脏数据：
+  // 校验「结束结果元组」是否自洽。
+  // 娱乐向小游戏，不做严格的防作弊校验（能改客户端的人提交时也能改回合法值，限制无意义），
+  // 只拦明显非法的脏数据：
   //   - 必须是个对象；
-  //   - score / pipesPassed / timeSurvived 都必须是非负整数；
-  //   - score 必须 == pipesPassed（游戏内二者恒等，不一致即异常/篡改）。
+  //   - 三个分值字段都必须是非负整数（防止浮点/字符串/缺失导致入库异常）。
+  // 注：原本的「score 必须 == pipesPassed」守恒校验已移除——娱乐向小游戏无需此限制，
+  //     且续玩存档瞬态不一致 / 极端分数下 `| 0` 截断 / 浮点取整偏差等场景会误伤合法上报
+  //     （climb 端已同样放宽）。
   validateResult(result) {
     if (!result || typeof result !== 'object') return false
     const { score, pipesPassed, timeSurvived } = result
-    if (![score, pipesPassed, timeSurvived].every((v) => Number.isInteger(v) && v >= 0)) return false
-    if (score !== pipesPassed) return false
+    const ints = [score, pipesPassed, timeSurvived]
+    if (!ints.every((v) => Number.isInteger(v) && v >= 0)) return false
     return true
   },
 

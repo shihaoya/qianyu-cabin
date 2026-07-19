@@ -13,7 +13,7 @@ export function buildFlyConfig(assets, overrides = {}) {
     },
 
     // ── 碰撞通用参数 ──
-    collidePad: 4, // 管道/地面碰撞判定收缩量（px）；值越小越容易撞上（越大越宽容）
+    collidePad: 1, // 管道/地面碰撞判定收缩量（px）；值越小越容易撞上（越大越宽容）
 
     // ── 小鸟精灵 ──
     character: {
@@ -41,18 +41,18 @@ export function buildFlyConfig(assets, overrides = {}) {
 
     // ── 管道 ──
     pipes: {
-      width: 80, // 管道粗细（默认值/兜底；实际粗细在 widthMin~widthMax 间随机）
-      widthMin: 58, // 最细管道
-      widthMax: 108, // 最粗管道（随机粗细，增加变化与挑战）
-      gap: 200, // 上下管道之间的可穿越缝隙（默认值/兜底；实际在 gapMin~gapMax 间随机）
-      gapMin: 200, // 最小缝隙（须明显大于鸟高，保证角色能正常穿过）
-      gapMax: 300, // 最大缝隙（越大越简单；随机缝隙大小增加变化）
-      gapMargin: 70, // 缝隙「边缘」离顶/离地的最小距离（保证整条缝隙完整在屏内、不贴边；spawnPipe 与 clampPipeToScreen 一致以边缘为基准）
-      maxGapShift: 300, // 相邻管道缝隙中心的「最大垂直位移」：限制前后缝隙上下跳变，保证鸟在两根之间的水平时间内飞得过去
-      spacing: 290, // 相邻管道水平间距（默认值/兜底；实际在 spacingMin~spacingMax 间随机）
-      spacingMin: 260, // 最小间距（调大 → 两根之间时间更充裕，更容易对准下一根）
-      spacingMax: 380, // 最大间距（管道更疏）
-      speed: 165, // 管道左移速度（px/s，越大越快越难）
+      width: 70, // 管道粗细（默认值/兜底；实际粗细在 widthMin~widthMax 间随机）
+      widthMin: 30, // 最细管道
+      widthMax: 150, // 最粗管道（随机粗细，增加变化与挑战）
+      gap: 300, // 上下管道之间的可穿越缝隙（默认值/兜底；实际在 gapMin~gapMax 间随机）
+      gapMin: 300, // 最小缝隙（须明显大于鸟高，保证角色能正常穿过）
+      gapMax: 500, // 最大缝隙（越大越简单；随机缝隙大小增加变化）
+      gapMargin: 0, // 缝隙「边缘」离顶/离地的最小距离（保证整条缝隙完整在屏内、不贴边；spawnPipe 与 clampPipeToScreen 一致以边缘为基准）
+      maxGapShift: 500, // 相邻管道缝隙中心的「最大垂直位移」：限制前后缝隙上下跳变，保证鸟在两根之间的水平时间内飞得过去
+      spacing: 300, // 相邻管道水平间距（默认值/兜底；实际在 spacingMin~spacingMax 间随机）
+      spacingMin: 300, // 最小间距（调大 → 两根之间时间更充裕，更容易对准下一根）
+      spacingMax: 600, // 最大间距（管道更疏）
+      speed: 160, // 管道左移速度（px/s，越大越快越难）
     },
 
     // ── 世界 / 地面 ──
