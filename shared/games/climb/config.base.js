@@ -106,6 +106,11 @@ export function buildClimbConfig(assets, overrides = {}) {
       autoSaveIntervalMs: 2000, // 游玩中每隔多久自动存档一次
     },
 
+    // ── 续玩倒计时（仅「继续上局」有；新局直接开始）──
+    countdown: {
+      duration: 3, // 倒计时秒数（3-2-1），期间场景冻结可见但不操作，结束自动开始
+    },
+
     // ── 玩法说明（问号悬浮层）──
     help: [
       'WSAD（上下左右）进行移动，长按S（下）可以进行下滑攻击，注意不是所有虫子都可以攻击哦~',

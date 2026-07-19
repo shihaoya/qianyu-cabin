@@ -99,6 +99,9 @@ export function createInitialState(cfg, saved) {
     bugs: [],
     items: [],
     nextId: 1,
+    // 续玩倒计时（仅「继续上局」有）：countdown > 0 时处于「3-2-1」倒数，
+    // 期间不推进物理（虫子/道具冻结、角色不动），但场景可见；到 0 后自动 running=true。
+    countdown: 0,
   }
   if (saved && typeof saved === 'object') {
     Object.assign(base, saved)
@@ -167,6 +170,26 @@ export function moveLane(state, dir, cfg) {
     toLane: target,
     t: 0,
     dur: cfg.character.jump.durationMs,
+  }
+}
+
+// 进入「续玩倒计时」：仅「继续上局」调用。角色停在存档位置、场景冻结但可见，
+// 屏幕显示 3-2-1 倒计时；到 0 自动 running=true 正式开始。
+export function startCountdown(state, cfg) {
+  state.countdown = Math.max(0, (cfg.countdown && cfg.countdown.duration) || 3)
+  state.running = false
+  state.gameOver = false
+}
+
+// 推进续玩倒计时一帧；到 0 后自动 running=true 正式开始。
+// 注意：续玩沿用存档里的 startedAt（历史「开始时间」保持真实），故仅当缺失时才补。
+export function stepCountdown(state, dt, cfg) {
+  if (state.countdown <= 0) return
+  state.countdown = Math.max(0, state.countdown - dt)
+  if (state.countdown <= 0) {
+    state.countdown = 0
+    state.running = true
+    if (!state.startedAt) state.startedAt = Date.now()
   }
 }
 

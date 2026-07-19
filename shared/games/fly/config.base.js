@@ -19,13 +19,16 @@ export function buildFlyConfig(assets, overrides = {}) {
     character: {
       image: assets.sprite,
       sheet: { cols: 4, rows: 6, totalFrames: 24 }, // 4 列 6 行共 24 帧（精灵图 1440×2160）
-      fps: 24, // 翅膀拍动帧率
+      fps: 30, // 翅膀拍动帧率
       scale: 0.3, // 渲染缩放（360×360 帧 × 0.3 ≈ 108px；换图后若太大/太小调这里）
       frame: { width: 360, height: 360 }, // 单帧像素（图未加载时的占位尺寸；加载后按图与 cols/rows 自动计算）
-      // 动画帧映射：fly 为 24 帧循环拍翅；idle/dead 用首帧（图未加载时占位）
-      // 觉得拍翅太快/太慢 → 调上面的 fps；想换某几帧当拍翅 → 改这里的数组
+      // 动画帧映射：fly 用「顺序 + 逆序」往返(乒乓)序列，再「每帧重复 2 次」展开成慢动作。
+      // 原理：fps 固定 24 每帧停留 42ms（流畅）；每帧重复 K 次 → 同一画面多停留 K 倍，
+      //   扇翅动作放慢为 1/K（真·慢动作）且不卡。想更慢把 2 改成 3；末帧(23)倒序回首帧(0)。
+      // idle 用首帧（图未加载时占位）。
       anim: {
-        fly: Array.from({ length: 24 }, (_, i) => i), // 0..23 全用，完整展现人物动作
+        fly: [...Array.from({ length: 24 }, (_, i) => i), ...Array.from({ length: 22 }, (_, i) => 22 - i)]
+          .flatMap((f) => Array(2).fill(f)),
         idle: [0],
       },
     },
@@ -63,6 +66,17 @@ export function buildFlyConfig(assets, overrides = {}) {
     // ── 存档 / 自动存档 ──
     save: {
       autoSaveIntervalMs: 2000,
+    },
+
+    // ── 飞入过场（仅「新开始」的游戏有；续玩/读档直接进入游戏，不加动画）──
+    enter: {
+      duration: 1.1, // 飞入时长（秒），从屏幕左侧外缓动飞到起点
+      fromXFrac: -0.15, // 起点横坐标占屏宽比例（负 = 屏幕左侧外）；终点为 bird.xFrac
+    },
+
+    // ── 续玩倒计时（仅「继续上局」有；新局走飞入过场，不倒计时）──
+    countdown: {
+      duration: 3, // 倒计时秒数（3-2-1），期间游戏内容可见但不操作，结束自动开始
     },
 
     // ── 玩法说明（问号悬浮层）──

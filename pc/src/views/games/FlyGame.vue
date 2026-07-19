@@ -14,7 +14,7 @@ import { getGame } from '../../games/registry.js'
 import { useGameSave, submitGameRecord, useGameLeaderboard, useGameHistory } from '../../composables/useGame.js'
 import { confirm, alert } from '../../composables/useConfirm.js'
 import config from '../../games/fly/config.js'
-import { createInitialState, serialize, buildResult, step, flap, GAME_OVER } from '@cabin/games/fly/engine.js'
+import { createInitialState, serialize, buildResult, step, flap, startEnter, stepEnter, beginPlay, startCountdown, stepCountdown, GAME_OVER } from '@cabin/games/fly/engine.js'
 import { draw } from '@cabin/games/fly/render.js'
 
 const props = defineProps({ gameKey: { type: String, required: true } })
@@ -73,6 +73,8 @@ const paused = computed(
     started.value &&
     !state.running &&
     !state.gameOver &&
+    !state.entering && // 飞入过场中不算暂停（否则会误弹「已暂停」遮罩）
+    state.countdown <= 0 && // 续玩倒计时中也不算暂停
     !helpOpen.value &&
     !boardOpen.value &&
     !historyOpen.value,
@@ -123,6 +125,15 @@ function loop(ts) {
       autoSaveAcc = 0
       doSave()
     }
+  } else if (state.entering && started.value) {
+    // 飞入过场：只推进飞入动画，不推进物理/管道/碰撞
+    stepEnter(state, dt, config)
+  } else if (state.countdown > 0 && started.value) {
+    // 续玩倒计时：只推进倒计时，不推进物理/管道/碰撞（内容可见、不操作）
+    stepCountdown(state, dt, config)
+  } else if (state.entering && started.value) {
+    // 飞入过场：只推进飞入动画，不推进物理/管道/碰撞
+    stepEnter(state, dt, config)
   }
   const ctx = canvasRef.value?.getContext('2d')
   if (ctx) draw(ctx, state, config, images)
@@ -139,6 +150,7 @@ async function doSave() {
 
 function togglePause() {
   if (state.gameOver || !started.value) return
+  if (state.entering || state.countdown > 0) return // 飞入/倒计时过场中忽略暂停
   if (panelOpen.value) {
     boardOpen.value = false
     historyOpen.value = false
@@ -162,6 +174,12 @@ function closeHelp() {
 }
 
 function onTap() {
+  // 飞入过场中点击 → 直接正式开始（不再拍翅）
+  if (state.entering) {
+    beginPlay(state, config)
+    return
+  }
+  if (state.countdown > 0) return // 续玩倒计时中点击无效（倒计时结束才正式开始）
   flap(state, config)
 }
 
@@ -181,8 +199,8 @@ async function onGameOver() {
 async function restart() {
   lastResult.value = null
   Object.assign(state, createInitialState(config))
-  state.startedAt = Date.now()
-  state.running = true
+  startEnter(state, config) // 新一局：先飞入过场，再等点击开始
+  started.value = true
   autoSaveAcc = 0
 }
 
@@ -236,15 +254,18 @@ async function startGame() {
       confirmText: '继续',
       cancelText: '重新开始',
     })
-    if (ok) Object.assign(state, createInitialState(config, existing.state))
-    else await save.clear()
+    if (ok) {
+      // 续玩：直接就位进入游戏，先 3 秒倒计时（内容可见），结束自动开始
+      Object.assign(state, createInitialState(config, existing.state))
+      startCountdown(state, config)
+    } else {
+      await save.clear()
+      startEnter(state, config) // 新局：飞入过场
+    }
   } else {
-    // 全新开局：按当前画布高度把小鸟放到偏上的安全位置（初始 state 创建时画布尚未 resize）
-    state.birdY = config.view.height * 0.42
-    state.vy = 0
+    // 全新开局：飞入过场（小鸟从左侧飞到起点）
+    startEnter(state, config)
   }
-  if (!state.startedAt) state.startedAt = Date.now()
-  state.running = true
   started.value = true
   pendingSave.value = null
   last = null

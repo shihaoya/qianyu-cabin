@@ -42,6 +42,17 @@ export function createInitialState(cfg, saved) {
     running: false,
     gameOver: false,
     animTime: 0, // 翅膀拍动动画时钟
+    // 飞入过场（仅「新开始」的游戏有；续玩/读档直接进入游戏，不加动画）：
+    //   entering: 是否处于「从左侧飞到起点」的过场中（此时不推进物理、不生成管道、不碰撞）
+    //   enterT: 过场进度 0→1
+    //   birdX: 小鸟当前横坐标（px）；飞入时从屏幕左侧插值到 W*birdXFrac，正常游戏恒为 W*birdXFrac
+    entering: false,
+    enterT: 0,
+    birdX: W * cfg.bird.xFrac,
+    // 续玩倒计时（仅「继续上局」有；新局走飞入过场，不倒计时）：
+    //   countdown > 0 时处于「3-2-1」倒数，期间不推进物理、不生成管道、不碰撞，
+    //   但游戏内容（管道/鸟）可见；到 0 后自动 running=true 正式开始。
+    countdown: 0,
   }
   if (saved && typeof saved === 'object') {
     base.birdY = Number.isFinite(saved.birdY) ? saved.birdY : H * 0.42
@@ -53,6 +64,7 @@ export function createInitialState(cfg, saved) {
     base.startedAt = saved.startedAt || null
     // 兜底：坐标系变了（如换端）导致鸟飞出屏幕，拉回安全区
     base.birdY = Math.max(20, Math.min(H - cfg.world.groundHeight - 20, base.birdY))
+    base.birdX = W * base.birdXFrac // 续玩无飞入，横坐标直接就位
   }
   return base
 }
@@ -87,6 +99,72 @@ export function flap(state, cfg) {
   state.vy = -cfg.bird.flapImpulse
 }
 
+// 进入「飞入过场」：仅新开始的游戏调用。小鸟从屏幕左侧外飞到起点位置，
+// 期间不推进物理/管道/碰撞，等玩家点击屏幕才正式开始（见 beginPlay）。
+// 续玩（读档）不调用此函数，直接 running，故无飞入。
+export function startEnter(state, cfg) {
+  const W = cfg.view.width
+  const H = cfg.view.height
+  state.entering = true
+  state.enterT = 0
+  state.running = false
+  state.gameOver = false
+  state.birdY = H * 0.42
+  state.vy = 0
+  // 起点横坐标：屏幕左侧外（fromXFrac 为负 → 屏外）
+  const fromX = (cfg.enter?.fromXFrac ?? -0.15) * W
+  state.birdX = fromX
+  state._enterFromX = fromX
+  state._enterToX = W * state.birdXFrac
+}
+
+// 推进飞入过场一帧；进度按配置的 enter.duration（秒）走 easeOutCubic 缓动。
+// 到 1 后停在未 running 的待命态，等待玩家点击 beginPlay。
+export function stepEnter(state, dt, cfg) {
+  if (!state.entering) return
+  const dur = Math.max(0.001, cfg.enter?.duration ?? 1.1)
+  state.enterT = Math.min(1, state.enterT + dt / dur)
+  const t = state.enterT
+  const e = 1 - Math.pow(1 - t, 3) // easeOutCubic
+  state.birdX = state._enterFromX + (state._enterToX - state._enterFromX) * e
+  // 轻微上下浮动，让飞入更有生气
+  state.birdY = cfg.view.height * 0.42 + Math.sin(t * Math.PI * 3) * 10
+  state.animTime += dt
+}
+
+// 玩家点击「飞入中」的屏幕 → 正式开始游戏（结束过场，进入物理循环）
+export function beginPlay(state, cfg) {
+  if (!state.entering) return
+  state.entering = false
+  state.enterT = 0
+  state.birdX = cfg.view.width * state.birdXFrac
+  state.birdY = cfg.view.height * 0.42
+  state.vy = 0
+  state.running = true
+  state.startedAt = Date.now()
+}
+
+// 进入「续玩倒计时」：仅「继续上局」调用。小鸟停在存档位置（不飞入、不下落），
+// 屏幕显示 3-2-1 倒计时，期间内容可见但不操作；到 0 自动开始游戏。
+export function startCountdown(state, cfg) {
+  state.entering = false
+  state.countdown = Math.max(0, (cfg.countdown && cfg.countdown.duration) || 3)
+  state.running = false
+  state.gameOver = false
+}
+
+// 推进续玩倒计时一帧；到 0 后自动 running=true 正式开始。
+// 注意：续玩沿用存档里的 startedAt（历史「开始时间」保持真实），故仅当缺失时才补。
+export function stepCountdown(state, dt, cfg) {
+  if (state.countdown <= 0) return
+  state.countdown = Math.max(0, state.countdown - dt)
+  if (state.countdown <= 0) {
+    state.countdown = 0
+    state.running = true
+    if (!state.startedAt) state.startedAt = Date.now()
+  }
+}
+
 // AABB 碰撞检测（pad 为负=扩大判定，更容易撞）
 function rectsOverlap(a, b, pad = 0) {
   return !(
@@ -108,6 +186,7 @@ export function step(state, dt, _input, cfg) {
   const W = cfg.view.width
   const H = cfg.view.height
   const bx = W * state.birdXFrac
+  state.birdX = bx // 正常游戏时横坐标恒为固定点（飞入过场已结束）
   const birdW = cfg.character.frame.width * cfg.character.scale
   const birdH = cfg.character.frame.height * cfg.character.scale
   const hb = cfg.bird.hitbox

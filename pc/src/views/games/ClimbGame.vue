@@ -14,7 +14,7 @@ import { getGame } from '../../games/registry.js'
 import { useGameSave, submitGameRecord, useGameLeaderboard, useGameHistory } from '../../composables/useGame.js'
 import { confirm, alert } from '../../composables/useConfirm.js'
 import config from '../../games/climb/config.js'
-import { createInitialState, serialize, buildResult, step, moveLane, GAME_OVER } from '@cabin/games/climb/engine.js'
+import { createInitialState, serialize, buildResult, step, moveLane, startCountdown, stepCountdown, GAME_OVER } from '@cabin/games/climb/engine.js'
 import { draw } from '@cabin/games/climb/render.js'
 
 const props = defineProps({ gameKey: { type: String, required: true } })
@@ -88,6 +88,7 @@ const paused = computed(
     started.value &&
     !state.running &&
     !state.gameOver &&
+    state.countdown <= 0 && // 续玩倒计时中不算暂停（否则会误弹「已暂停」遮罩）
     !helpOpen.value &&
     !boardOpen.value &&
     !historyOpen.value,
@@ -145,6 +146,9 @@ function loop(ts) {
       autoSaveAcc = 0
       doSave()
     }
+  } else if (state.countdown > 0 && started.value) {
+    // 续玩倒计时：只推进倒计时，不推进物理（场景冻结可见、不操作）
+    stepCountdown(state, dt, config)
   }
   const ctx = canvasRef.value?.getContext('2d')
   if (ctx) draw(ctx, state, config, images)
@@ -161,6 +165,7 @@ async function doSave() {
 
 function togglePause() {
   if (state.gameOver || !started.value) return
+  if (state.countdown > 0) return // 续玩倒计时过场中忽略暂停
   if (panelOpen.value) {
     // 关闭所有面板，回到打开前的状态（暂停或继续）
     boardOpen.value = false
@@ -282,11 +287,16 @@ async function startGame() {
       confirmText: '继续',
       cancelText: '重新开始',
     })
-    if (ok) Object.assign(state, createInitialState(config, existing.state))
-    else await save.clear()
+    if (ok) {
+      // 续玩：直接就位进入游戏，先 3 秒倒计时（场景冻结可见），结束自动开始
+      Object.assign(state, createInitialState(config, existing.state))
+      startCountdown(state, config)
+    } else {
+      await save.clear()
+    }
   }
   if (!state.startedAt) state.startedAt = Date.now() // 新开局记开始时间；续玩则沿用存档里的原始开局时间
-  state.running = true
+  if (state.countdown <= 0) state.running = true // 新局立即开始；续玩由倒计时触发
   started.value = true
   pendingSave.value = null
   last = null

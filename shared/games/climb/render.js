@@ -169,6 +169,36 @@ export function draw(ctx, state, cfg, images) {
   try {
     drawFloaters(ctx, state)
   } catch (e) { /* 不阻断 */ }
+
+  // 续玩倒计时（3-2-1）：直接画在画布上，不挡操作
+  try {
+    if (state.countdown > 0) drawCountdown(ctx, state, cfg)
+  } catch (e) { /* 不阻断 */ }
+}
+
+// 续玩倒计时（3-2-1）：大号数字 + 脉冲圆环，每秒“弹”一下
+function drawCountdown(ctx, state, cfg) {
+  const W = cfg.view.width
+  const H = cfg.view.height
+  const n = Math.ceil(state.countdown)
+  const frac = state.countdown - Math.floor(state.countdown) // 当前秒内的进度 0..1
+  const scale = 1 + (1 - frac) * 0.45 // 整数秒时 1.45 → 渐缩到 1.0，跳动感
+  ctx.save()
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.globalAlpha = 0.5
+  ctx.strokeStyle = 'rgba(255,255,255,0.95)'
+  ctx.lineWidth = 6
+  ctx.beginPath()
+  ctx.arc(W / 2, H / 2, 64 * scale, 0, Math.PI * 2)
+  ctx.stroke()
+  ctx.globalAlpha = 1
+  ctx.fillStyle = '#fff'
+  ctx.font = `900 ${Math.round(76 * scale)}px sans-serif`
+  ctx.shadowColor = 'rgba(0, 0, 0, 0.4)'
+  ctx.shadowBlur = 12
+  ctx.fillText(String(n), W / 2, H / 2)
+  ctx.restore()
 }
 
 function renderError(ctx, W, H, phase, err) {
