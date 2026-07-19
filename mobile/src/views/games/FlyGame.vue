@@ -21,6 +21,7 @@ const flyConfirm = createConfirmScope()
 import config from '../../games/fly/config.js'
 import { createInitialState, serialize, buildResult, step, flap, startEnter, stepEnter, beginPlay, startCountdown, stepCountdown, GAME_OVER } from '@cabin/games/fly/engine.js'
 import { draw } from '@cabin/games/fly/render.js'
+import { prepareSpriteMask } from '@cabin/games/fly/mask.js'
 
 const props = defineProps({ gameKey: { type: String, required: true } })
 const emit = defineEmits(['finished'])
@@ -242,8 +243,10 @@ onMounted(async () => {
   if (!ctx2d) ctx2d = canvasRef.value?.getContext('2d')
   if (ctx2d) draw(ctx2d, state, config, images)
   sprite.onload = () => {
+    prepareSpriteMask(sprite, config)
     if (!started.value && ctx2d) draw(ctx2d, state, config, images)
   }
+  if (sprite.complete) sprite.onload()
   try {
     pendingSave.value = await save.load()
   } catch (e) {

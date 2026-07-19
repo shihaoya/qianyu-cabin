@@ -97,6 +97,17 @@ function roundRect(ctx, x, y, w, h, r) {
   ctx.closePath()
 }
 
+// 调试：碰撞盒可视化（红框 + 半透明填充）。x/y/w/h 为判定矩形（已含 collidePad 收缩）。
+function drawHitboxRect(ctx, x, y, w, h) {
+  ctx.save()
+  ctx.strokeStyle = 'rgba(255,0,0,0.9)'
+  ctx.lineWidth = 2
+  ctx.fillStyle = 'rgba(255,0,0,0.15)'
+  ctx.fillRect(x, y, w, h)
+  ctx.strokeRect(x, y, w, h)
+  ctx.restore()
+}
+
 export function draw(ctx, state, cfg, images) {
   const W = cfg.view.width
   const H = cfg.view.height
@@ -187,6 +198,14 @@ function drawPipe(ctx, x, gapTop, gapBottom, pw, groundY, cfg) {
   pipeBody(ctx, x, 0, pw, gapTop, groundY, body, rim, light, true)
   // 下管道（从 gapBottom 到地面）
   pipeBody(ctx, x, gapBottom, pw, groundY - gapBottom, groundY, body, rim, light, false)
+
+  // 调试：管道碰撞盒（红框）。与引擎判定一致：上管 {x,0,w,gapTop}、下管 {x,gapBottom,w,groundY-gapBottom}，
+  // 并应用 collidePad 收缩（pad 为正 → 判定矩形向内收，故这里也收 pad）。
+  if (cfg.debug?.showHitbox) {
+    const pad = cfg.collidePad || 0
+    drawHitboxRect(ctx, x + pad, pad, pw - 2 * pad, gapTop - 2 * pad)
+    drawHitboxRect(ctx, x + pad, gapBottom + pad, pw - 2 * pad, groundY - gapBottom - 2 * pad)
+  }
 }
 
 function pipeBody(ctx, x, y, pw, h, groundY, body, rim, light, isTop) {
@@ -249,5 +268,29 @@ function drawBird(ctx, state, cfg, sprite) {
     roundRect(ctx, -birdW / 2, -birdH / 2, birdW, birdH, 12)
     ctx.fill()
     ctx.restore()
+  }
+
+  // 调试：碰撞体可视化。优先画「像素级轮廓」（红色半透明，贴合角色实际范围）；
+  // 无掩码时回退到矩形红框。
+  if (cfg.debug?.showHitbox) {
+    const m = cfg.character.mask
+    if (m && m.redCanvas && sprite && sprite.complete && sprite.naturalWidth) {
+      const cols = cfg.character.sheet.cols
+      const rows = cfg.character.sheet.rows
+      const fw = sprite.naturalWidth / cols
+      const fh = sprite.naturalHeight / rows
+      const sx = (frame % cols) * fw
+      const sy = Math.floor(frame / cols) * fh
+      ctx.save()
+      ctx.translate(bx, state.birdY)
+      ctx.rotate(angle)
+      ctx.drawImage(m.redCanvas, sx, sy, fw, fh, -birdW / 2, -birdH / 2, birdW, birdH)
+      ctx.restore()
+    } else {
+      const hb = cfg.bird.hitbox
+      const hbW = birdW * hb.w
+      const hbH = birdH * hb.h
+      drawHitboxRect(ctx, bx - hbW / 2, state.birdY - hbH / 2, hbW, hbH)
+    }
   }
 }

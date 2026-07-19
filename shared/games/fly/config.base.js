@@ -39,7 +39,7 @@ export function buildFlyConfig(assets, overrides = {}) {
       flapImpulse: 430, // 每次拍翅赋予的向上速度（px/s，越大跳得越高）
       gravity: 1500, // 重力加速度（px/s²，越大下坠越快越难）
       maxFallVy: 720, // 最大下落速度（px/s）
-      hitbox: { w: 0.62, h: 0.62 }, // 碰撞盒占整帧的比例（居中），收紧避免“视觉很远就撞上”
+      hitbox: { w: 1, h: 1 }, // 矩形碰撞回退比例（仅当精灵图掩码未生成时生效；像素级碰撞启用后按角色实际轮廓判定，忽略此值）
     },
 
     // ── 管道 ──
@@ -77,6 +77,11 @@ export function buildFlyConfig(assets, overrides = {}) {
     // ── 续玩倒计时（仅「继续上局」有；新局走飞入过场，不倒计时）──
     countdown: {
       duration: 3, // 倒计时秒数（3-2-1），期间游戏内容可见但不操作，结束自动开始
+    },
+
+    // ── 调试可视化 ──
+    debug: {
+      showHitbox: true, // 画出碰撞盒（红框）：与引擎判定完全一致，方便核对「碰到却没反应」；调试完改 false 关闭
     },
 
     // ── 玩法说明（问号悬浮层）──

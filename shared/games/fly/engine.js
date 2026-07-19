@@ -175,6 +175,67 @@ function rectsOverlap(a, b, pad = 0) {
   )
 }
 
+// 当前精灵图帧索引（0..total-1）。anim.fly 是乒乓展开数组，元素值即精灵图帧索引。
+function currentFrameIndex(state, cfg) {
+  const frames = cfg.character.anim.fly
+  return frames[Math.floor(state.animTime * cfg.character.fps) % frames.length]
+}
+
+// 像素级碰撞：按角色实际轮廓（精灵图 alpha 掩码）判定，与渲染的旋转/位置完全一致。
+// 先算「旋转包围盒」粗判，重叠才逐像素精判；返回 true 表示撞到管道或落地。
+function pixelCollides(state, cfg, mask, angle, groundY) {
+  const W = cfg.view.width
+  const bx = W * state.birdXFrac
+  const birdW = cfg.character.frame.width * cfg.character.scale
+  const birdH = cfg.character.frame.height * cfg.character.scale
+  const pts = mask.points[currentFrameIndex(state, cfg)]
+  if (!pts || pts.length === 0) return false
+  const cos = Math.cos(angle)
+  const sin = Math.sin(angle)
+  const halfW = mask.frameW / 2
+  const halfH = mask.frameH / 2
+  // 把「精灵图原始像素坐标」缩放到「屏幕显示尺寸」：pts 是 0..frameW 的原始像素，
+  // 而角色显示宽高 = frame * scale（birdW/birdH），必须乘缩放因子，否则碰撞体会被放大 1/scale 倍。
+  const sxScale = birdW / mask.frameW
+  const syScale = birdH / mask.frameH
+  const pad = cfg.collidePad || 0
+
+  // 旋转后包围盒（粗判，保守地用整帧旋转框）
+  const rHW = Math.abs((birdW / 2) * cos) + Math.abs((birdH / 2) * sin)
+  const rHH = Math.abs((birdW / 2) * sin) + Math.abs((birdH / 2) * cos)
+  const ax = bx - rHW
+  const ay = state.birdY - rHH
+  const aw = rHW * 2
+  const ah = rHH * 2
+
+  // 落地：任一角色像素触地
+  if (ay + ah >= groundY) {
+    for (let i = 0; i < pts.length; i += 2) {
+      const lx = (pts[i] - halfW) * sxScale
+      const ly = (pts[i + 1] - halfH) * syScale
+      const sy = state.birdY + (lx * sin + ly * cos)
+      if (sy >= groundY) return true
+    }
+  }
+
+  // 管道：仅对包围盒重叠的管道逐像素精判
+  for (const p of state.pipes) {
+    const pw = p.width ?? cfg.pipes.width
+    const top = { x: p.x + pad, y: pad, w: pw - 2 * pad, h: p.gapTop - 2 * pad }
+    const bot = { x: p.x + pad, y: p.gapBottom + pad, w: pw - 2 * pad, h: groundY - p.gapBottom - 2 * pad }
+    if (!rectsOverlap({ x: ax, y: ay, w: aw, h: ah }, top) && !rectsOverlap({ x: ax, y: ay, w: aw, h: ah }, bot)) continue
+    for (let i = 0; i < pts.length; i += 2) {
+      const lx = (pts[i] - halfW) * sxScale
+      const ly = (pts[i + 1] - halfH) * syScale
+      const sx = bx + (lx * cos - ly * sin)
+      const sy = state.birdY + (lx * sin + ly * cos)
+      if (sx >= top.x && sx <= top.x + top.w && sy >= top.y && sy <= top.y + top.h) return true
+      if (sx >= bot.x && sx <= bot.x + bot.w && sy >= bot.y && sy <= bot.y + bot.h) return true
+    }
+  }
+  return false
+}
+
 // 推进一帧；返回事件数组（用于音效 / 结束判定）
 export function step(state, dt, _input, cfg) {
   if (!state.running || state.gameOver) return []
@@ -232,26 +293,39 @@ export function step(state, dt, _input, cfg) {
 
   // ── 碰撞 ──
   const groundY = H - cfg.world.groundHeight
-  const birdRect = {
-    x: bx - hbW / 2,
-    y: state.birdY - hbH / 2,
-    w: hbW,
-    h: hbH,
-  }
-  // 落地
-  if (state.birdY + hbH / 2 >= groundY) {
-    state.birdY = groundY - hbH / 2
-    gameOver(state, events)
-    return events
-  }
-  // 撞管道
-  for (const p of state.pipes) {
-    const pw = p.width ?? cfg.pipes.width
-    const topRect = { x: p.x, y: 0, w: pw, h: p.gapTop }
-    const botRect = { x: p.x, y: p.gapBottom, w: pw, h: groundY - p.gapBottom }
-    if (rectsOverlap(birdRect, topRect, cfg.collidePad) || rectsOverlap(birdRect, botRect, cfg.collidePad)) {
+  const mask = cfg.character.mask
+  if (mask) {
+    // 像素级碰撞：按角色实际轮廓（精灵图 alpha）判定，和屏幕上显示的角色完全一致
+    const angle = state.gameOver
+      ? 1.35
+      : Math.max(-0.5, Math.min(1.2, state.vy / cfg.bird.flapImpulse) * 0.5)
+    if (pixelCollides(state, cfg, mask, angle, groundY)) {
       gameOver(state, events)
       return events
+    }
+  } else {
+    // 回退：矩形碰撞（图未加载 / 无掩码时）。hbW/hbH 在上方已算。
+    const birdRect = {
+      x: bx - hbW / 2,
+      y: state.birdY - hbH / 2,
+      w: hbW,
+      h: hbH,
+    }
+    // 落地
+    if (state.birdY + hbH / 2 >= groundY) {
+      state.birdY = groundY - hbH / 2
+      gameOver(state, events)
+      return events
+    }
+    // 撞管道
+    for (const p of state.pipes) {
+      const pw = p.width ?? cfg.pipes.width
+      const topRect = { x: p.x, y: 0, w: pw, h: p.gapTop }
+      const botRect = { x: p.x, y: p.gapBottom, w: pw, h: groundY - p.gapBottom }
+      if (rectsOverlap(birdRect, topRect, cfg.collidePad) || rectsOverlap(birdRect, botRect, cfg.collidePad)) {
+        gameOver(state, events)
+        return events
+      }
     }
   }
 
