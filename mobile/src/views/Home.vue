@@ -35,7 +35,7 @@ function onLogout() {
   <div class="home">
     <header class="home__header qy-rise">
       <div class="home__brand">
-        <CabinLogo :size="28" />
+        <CabinLogo :size="22" />
         <span class="home__brand-name">千羽的小屋</span>
       </div>
       <template v-if="!auth.isLoggedIn">
@@ -120,11 +120,11 @@ function onLogout() {
   align-items: center;
   justify-content: space-between;
   margin: 0 -16px;
-  padding: 14px 16px;
-  background: rgba(247, 241, 227, 0.82);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  border-bottom: 1px solid rgba(120, 90, 50, 0.08);
+  padding: 0 16px;
+  padding-top: env(safe-area-inset-top, 0px);
+  height: calc(var(--topbar-h, 44px) + env(safe-area-inset-top, 0px));
+  background: var(--surface);
+  border-bottom: 1px solid rgba(120, 90, 50, 0.1);
 }
 .home__brand {
   display: flex;
@@ -133,17 +133,24 @@ function onLogout() {
 }
 .home__brand-name {
   font-family: var(--font-display);
-  font-size: 20px;
+  font-size: 17px;
   color: var(--text);
 }
 .home__nick {
   color: var(--muted);
-  font-size: 14px;
+  font-size: 13px;
 }
 .home__user {
   display: flex;
   align-items: center;
   gap: 4px;
+}
+/* 导航栏内的按钮收小，贴合 44px 顶栏：覆盖 BaseButton 默认 md 尺寸（min-height 44px 会顶满） */
+.home__header :deep(.base-btn) {
+  min-height: 28px;
+  padding: 5px 14px;
+  font-size: 13px;
+  border-radius: 10px;
 }
 
 .hero {

@@ -37,8 +37,9 @@ const props = defineProps({
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  /* 供竖屏全屏游戏参考：顶部导航占用的高度（含刘海安全区），游戏旋转区需减掉它 */
-  --gs-head-h: calc(48px + env(safe-area-inset-top, 0px));
+  /* 供竖屏全屏游戏参考：顶部导航占用的高度（含刘海安全区），游戏旋转区需减掉它；
+     与首页顶部导航统一高度（--topbar-h），移动端小屏更紧凑 */
+  --gs-head-h: calc(var(--topbar-h, 44px) + env(safe-area-inset-top, 0px));
 }
 .gs-head {
   flex: none;
@@ -46,21 +47,22 @@ const props = defineProps({
   box-sizing: border-box;
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 0 14px;
+  gap: 10px;
+  padding: 0 12px;
+  padding-top: env(safe-area-inset-top, 0px);
   background: var(--surface);
-  box-shadow: var(--shadow);
+  border-bottom: 1px solid rgba(120, 90, 50, 0.1);
   position: relative; /* 让 z-index 生效，浮在竖屏全屏游戏画面之上 */
   z-index: 2;
 }
 .gs-back {
   color: var(--primary);
   text-decoration: none;
-  font-size: 14px;
+  font-size: 13px;
 }
 .gs-title {
   margin: 0;
-  font-size: 20px;
+  font-size: 17px;
   font-family: var(--font-display);
   flex: 1;
 }

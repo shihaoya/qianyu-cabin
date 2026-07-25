@@ -423,9 +423,9 @@ defineExpose({ togglePause, onSave: doSave })
    既不占满顶栏、也不被顶栏遮挡。 */
 .fly-game.is-portrait {
   position: fixed;
-  top: calc(var(--gs-head-h, 48px) + (100vh - var(--gs-head-h, 48px)) / 2);
+  top: calc(var(--gs-head-h, 44px) + (100vh - var(--gs-head-h, 44px)) / 2);
   left: 50vw;
-  width: calc(100vh - var(--gs-head-h, 48px)); /* 旋转前宽 → 视觉高（减掉导航） */
+  width: calc(100vh - var(--gs-head-h, 44px)); /* 旋转前宽 → 视觉高（减掉导航） */
   height: 100vw; /* 旋转前高 → 视觉宽 = 屏宽 */
   transform: translate(-50%, -50%) rotate(90deg);
   transform-origin: center;

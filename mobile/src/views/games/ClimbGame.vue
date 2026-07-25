@@ -807,19 +807,19 @@ defineExpose({ togglePause, onSave: doSave })
     '. up .'
     'left down right'
     '. pause .';
-  gap: 10px;
+  gap: 7px;
   width: 100%;
-  max-width: 320px;
+  max-width: 268px;
   align-self: center; /* 在 flex 纵向容器里水平居中 */
-  margin: 10px 0 calc(12px + env(safe-area-inset-bottom, 0px));
+  margin: 6px 0 calc(8px + env(safe-area-inset-bottom, 0px));
 }
 .cg-key {
   touch-action: none;
   user-select: none;
   border: none;
-  border-radius: 14px;
-  padding: 16px 0;
-  font-size: 18px;
+  border-radius: 12px;
+  padding: 11px 0;
+  font-size: 16px;
   font-weight: 700;
   color: #fff;
   background: var(--primary);

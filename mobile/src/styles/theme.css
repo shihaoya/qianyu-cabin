@@ -10,6 +10,7 @@
   --accent: #5b8c7b;
   --radius: 14px;
   --shadow: 0 6px 20px rgba(120, 90, 50, .12);
+  --topbar-h: 44px; /* 顶部导航栏统一高度（不含安全区）；首页与游戏页一致，移动端小屏更紧凑 */
   --font: "Cabin", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
   --font-display: "ZCOOL KuaiLe", "PingFang SC", system-ui, sans-serif;
   --grad-hero: linear-gradient(135deg, #fbf4e6 0%, #f4e3c8 55%, #efd9bd 100%);
