@@ -63,6 +63,33 @@ defineProps({
       <path d="M124 92 l28 8 -28 12Z" fill="#e0a23b" />
       <path d="M78 64 q4 -16 18 -18" stroke="var(--primary)" stroke-width="5" fill="none" stroke-linecap="round" />
     </template>
+    <template v-else-if="type === 'slap'">
+      <!-- 打是亲：挨了一巴掌的小圆脸 + 飞来的手掌 + 星星 -->
+      <circle cx="76" cy="112" r="52" fill="#f7d9a8" />
+      <path d="M28 100 q6 -46 48 -46 q42 0 48 46 q-10 -18 -48 -18 q-38 0 -48 18Z" fill="var(--primary)" />
+      <path d="M76 66 q10 -22 26 -22" stroke="var(--primary)" stroke-width="7" fill="none" stroke-linecap="round" />
+      <g stroke="#2b2b2b" stroke-width="6" fill="none" stroke-linecap="round">
+        <path d="M52 112 a10 10 0 1 0 12 6" />
+        <path d="M100 112 a10 10 0 1 0 12 6" />
+      </g>
+      <ellipse cx="76" cy="140" rx="12" ry="14" fill="#b7654a" />
+      <circle cx="42" cy="132" r="9" fill="#e08a6a" opacity="0.7" />
+      <circle cx="110" cy="132" r="9" fill="#e08a6a" opacity="0.7" />
+      <g transform="translate(160 96) rotate(14)">
+        <rect x="10" y="-8" width="22" height="46" rx="11" fill="#f7d9a8" stroke="var(--primary)" stroke-width="6" />
+        <ellipse cx="0" cy="0" rx="20" ry="24" fill="#f7d9a8" stroke="var(--primary)" stroke-width="6" />
+        <g fill="#f7d9a8" stroke="var(--primary)" stroke-width="6" stroke-linejoin="round">
+          <rect x="-20" y="-40" width="11" height="24" rx="5.5" />
+          <rect x="-7" y="-46" width="11" height="30" rx="5.5" />
+          <rect x="6" y="-44" width="11" height="28" rx="5.5" />
+          <rect x="19" y="-34" width="11" height="22" rx="5.5" />
+        </g>
+      </g>
+      <g fill="#e0a23b">
+        <path d="M104 28 l6 13 14 2 -10 10 2 14 -12 -7 -12 7 2 -14 -10 -10 14 -2Z" />
+        <path d="M52 40 l4 9 10 1 -7 7 1 10 -8 -5 -8 5 1 -10 -7 -7 10 -1Z" />
+      </g>
+    </template>
     <!-- 后续新游戏/功能：在此追加 v-else-if="type === 'xxx'" 分支 -->
   </svg>
 </template>

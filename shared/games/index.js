@@ -24,6 +24,12 @@ export const GAME_DEFS = [
       { label: '时长', value: detail?.timeSurvived != null ? `${detail.timeSurvived}s` : '-' },
     ],
   },
+  // 打是亲：纯娱乐小游戏，不产生成绩记录，故没有 scoreLabel / formatDetail（榜单展示用）
+  {
+    key: 'slap',
+    name: '打是亲',
+    icon: 'slap',
+  },
 ]
 
 // 注入平台专属组件，构建最终注册表（component 由各端提供，元信息只写一份）
