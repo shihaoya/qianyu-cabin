@@ -107,9 +107,18 @@ server/
 | 1007 | 404 | 游戏不存在（gameKey 未注册） | 游戏相关接口 `GET/PUT/POST/DELETE /api/games/:key/*` |
 | 1008 | 400 | （已废弃）原「存档状态非法」；`PUT /api/games/:key/save` 现已改为**不校验、原样存储**（前端传什么存什么），此码不再返回，保留登记 | `PUT /api/games/:key/save` |
 | 1009 | 400 | 游戏结果非法（engine.validateResult 失败） | `POST /api/games/:key/records` |
+| 1010 | 404 | 福利类型不存在 | `PATCH/DELETE /api/benefit-types/:id`、`POST /api/fans/:id/cards/adjust` |
+| 1011 | 400 | 福利类型名称重复 | `POST /api/benefit-types`、`PATCH /api/benefit-types/:id` |
+| 1012 | 400 | 仍有粉丝持有该类型的卡，不能删除 | `DELETE /api/benefit-types/:id` |
+| 1013 | 404 | 粉丝不存在 | `PATCH/DELETE /api/fans/:id`、`GET/POST /api/fans/:id/*` |
+| 1014 | 400 | 卡数量不足（扣减后为负） | `POST /api/fans/:id/cards/adjust` |
+| 1015 | 400 | 未填写增减卡的理由 | `POST /api/fans/:id/cards/adjust` |
+| 1016 | 400 | 调整数量非法（非整数或为 0） | `POST /api/fans/:id/cards/adjust` |
+| 1017 | 400 | 常用理由已存在 | `POST /api/benefit-reasons`、`PATCH /api/benefit-reasons/:id` |
+| 1018 | 404 | 常用理由不存在 | `PATCH/DELETE /api/benefit-reasons/:id` |
 | 5000 | 500 | 服务端未知错误 | 错误中间件 |
 
-> 新增业务错误码时，在此表登记并在对应接口文档/注释说明，保证 PC/移动端一致。
+> 新增业务错误码时，在此表登记并在对应接口文档/注释说明，保证 PC/移动端一致。下一个可用业务码：**1019**。
 
 ### 游戏存档接口：不校验、原样存
 
@@ -122,7 +131,7 @@ server/
 ## 11. 构建与运行
 
 - 开发：`pnpm dev`（建议 `node --watch src/server.js` 或 nodemon，按环境选）。
-- 迁移：`pnpm prisma migrate deploy`（生产）/ `prisma migrate dev`（开发）。
+- 迁移：部署用 **`pnpm db:deploy`**（= `prisma migrate deploy`，按迁移历史把库升到最新）；开发用 `pnpm prisma migrate dev --name <name>` 生成并应用迁移。
 - 生产：守护进程运行 `src/server.js`（pm2 / systemd），经 nginx 反代（见 `DEPLOYMENT.md`）。
 - 启动自检：配置缺失则退出并提示；`prisma generate` 应在部署脚本中执行。
 
@@ -186,4 +195,53 @@ node node_modules/prisma/build/index.js migrate dev --name <name>
 - 提升账号：开发期脚本 `node scripts/promote-owner.js <昵称>`（把账号置为 `owner`），仅本人使用。
 
 > 权限边界是安全红线：任何新增的「管理类」接口都必须挂 `requireAdmin`（底层 `requireCap`，统一走 `permissions.can`），且前端对应入口/路由同步用 `can(user,'...')` 判断——**权限语言单一真源在 `src/permissions.js`**，新增能力先在 `CAP_ROLE` 登记。
+
+## 14. 福利管理约定（福利类型 / 粉丝 / 卡）
+
+### 14.1 数据模型（server/prisma/schema.prisma）
+
+四个模型，与既有模型一致**不使用 Prisma relation**（无外键），跨表数据靠二次查询手工拼接：
+
+| 模型 | 作用 | 关键约束 |
+|---|---|---|
+| `BenefitType` | 福利类型（如「加班卡」「减班卡」） | `name` 唯一 |
+| `Fan` | 粉丝档案 | 仅 `nickname` 必填；`userId` 可空 + `systemAccount` 昵称快照；`douyinAccount`/`remark` 可选 |
+| `FanBenefit` | 粉丝持有的某类型卡数量 | `@@unique([fanId, typeId])`，一个粉丝每种类型至多一条 |
+| `BenefitLog` | 增减流水，**只增不改不删** | 存 `delta`、`balance`、`reason`、`createdAt`、`operatorId/Name`、`fanNickname`/`typeName` 快照 |
+| `BenefitReason` | 常用理由短语，增减卡时一键带入 | `text` 唯一；删 **不级联**到流水，流水里的 `reason` 是独立文本 |
+
+**Snapshot 冗余原则**：流水里的粉丝名 / 类型名做快照而非外键联查——粉丝被删除、类型被重命名后，历史记录依然可读可追溯。粉丝改名时同步刷新其流水的 `fanNickname`。
+
+### 14.2 接口（`routes/benefitTypes.js`、`routes/fans.js`）
+
+统一挂 `auth` + `requireBenefitsAdmin`（= `requireCap('manageBenefits')`，管理员与开发管理员可用）：
+
+```
+GET    /api/benefit-types              类型列表（含 holderCount：持有该类型的粉丝数）
+POST   /api/benefit-types              新增
+PATCH  /api/benefit-types/:id          改名/改说明
+DELETE /api/benefit-types/:id          删除（有人持有则 1012）
+GET    /api/benefit-reasons            常用理由列表（按新增顺序）
+POST/PATCH/DELETE  /api/benefit-reasons[/:id]   常用理由增删改（重名 1017，不存在 1018）
+
+GET    /api/fans                       粉丝列表（page/pageSize/keyword，含 cards 概览）
+POST   /api/fans                       新增
+PATCH  /api/fans/:id                   编辑
+DELETE /api/fans/:id                   删除（连带清空其持有的卡，流水保留）
+GET    /api/fans/:id/cards             该粉丝各类型卡数量（未持有也返回，amount=0）
+POST   /api/fans/:id/cards/adjust      增减卡 { typeId, delta, reason }
+GET    /api/fans/:id/logs              增减记录倒序分页
+
+GET    /api/me/benefits                「我的福利」：按当前登录 userId 反查粉丝档案，返回卡状态 + 最近发放记录（**只需登录**，不要求管理员）
+```
+
+### 14.3 业务红线
+
+- **增减必须留痕**：`adjustFanCard` 在同一事务内更新 `FanBenefit` 并写 `BenefitLog`，二者不可只做一个；`reason` 必填、`delta` 必须为不为 0 的整数。
+- **余额不可为负**：扣减后小于 0 抛 `1014`，提示携带当前剩余数量。
+- **类型删除受保护**：`amount > 0` 的持有记录存在时拒绝删除（`1012`）；删除类型会顺带清理数量为 0 的残留 `FanBenefit`。
+- **系统内账号必须真实**：`userId` 传入时需能查到 `User`，否则 `1001`；传 `null`/空串表示解除关联。
+- **「我的福利」只走 token，不接受 id 入参**：`GET /api/me/benefits` 用 `req.user.id` 反查 `Fan.userId`，因此天然无越权读他人卡的可能；账号尚未被登记为粉丝是**正常状态**，返回 `{ bound:false, cards:[], logs:[] }` 交给前端做友好提示，不要报业务错误。
+- **常用理由只是输入法**：`BenefitReason` 仅供前端快捷带入，服务端仍按常规校验该次增减的 `reason`（必填、≤30 字、去空格后判重）；删除常用理由**不得**改动任何已写入的流水。
+- 分页入参沿用既有范式（`page`/`pageSize` clamp，`pageSize` 上限 50）。
 

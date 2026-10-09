@@ -4,6 +4,10 @@ import authRoutes from './routes/auth.js'
 import guestbookRoutes from './routes/guestbook.js'
 import adminRoutes from './routes/admin.js'
 import gameRoutes from './routes/games.js'
+import benefitTypeRoutes from './routes/benefitTypes.js'
+import benefitReasonRoutes from './routes/benefitReasons.js'
+import fanRoutes from './routes/fans.js'
+import meRoutes from './routes/me.js'
 import { errorHandler } from './middleware/error.js'
 import { requestLog } from './middleware/requestLog.js'
 import { log } from './utils/logger.js'
@@ -27,6 +31,10 @@ app.use('/api/auth', authRoutes)
 app.use('/api/guestbook', guestbookRoutes)
 app.use('/api/admin', adminRoutes)
 app.use('/api/games', gameRoutes)
+app.use('/api/benefit-types', benefitTypeRoutes)
+app.use('/api/benefit-reasons', benefitReasonRoutes)
+app.use('/api/fans', fanRoutes)
+app.use('/api/me', meRoutes)
 app.use(errorHandler)
 
 app.listen(config.port, () => {

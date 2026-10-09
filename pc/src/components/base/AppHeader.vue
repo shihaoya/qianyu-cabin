@@ -40,7 +40,10 @@ function onLogout() {
 <template>
   <header class="app-header">
     <div class="app-header__bar">
-      <RouterLink to="/" class="app-header__brand">
+      <RouterLink
+        to="/"
+        class="app-header__brand"
+      >
         <CabinLogo :size="32" />
         <span class="app-header__name">千羽的小屋</span>
       </RouterLink>
@@ -72,6 +75,14 @@ function onLogout() {
           用户管理
         </RouterLink>
         <RouterLink
+          v-if="can(auth.user, CAP.MANAGE_BENEFITS)"
+          :to="{ name: 'admin-benefits' }"
+          class="app-header__link"
+          :class="{ 'is-active': isActive('admin-benefits') }"
+        >
+          福利管理
+        </RouterLink>
+        <RouterLink
           v-if="can(auth.user, CAP.OWNER_TOOLS)"
           :to="{ name: 'icon-studio' }"
           class="app-header__link"
@@ -84,9 +95,20 @@ function onLogout() {
       <div class="app-header__user">
         <template v-if="auth.isLoggedIn">
           <span class="app-header__nick">你好，{{ auth.user?.nickname }}</span>
-          <BaseButton type="text" @click="onLogout">退出</BaseButton>
+          <BaseButton
+            type="text"
+            @click="onLogout"
+          >
+            退出
+          </BaseButton>
         </template>
-        <BaseButton v-else type="primary" @click="router.push('/login')">登录</BaseButton>
+        <BaseButton
+          v-else
+          type="primary"
+          @click="router.push('/login')"
+        >
+          登录
+        </BaseButton>
       </div>
     </div>
   </header>

@@ -21,12 +21,15 @@ export const ROLE_LABEL = {
 export const CAP = {
   MANAGE_USERS: 'manageUsers', // 用户管理
   OWNER_TOOLS: 'ownerTools', // 仅开发管理员可见的开发工具（如图标工作室）
+  MANAGE_BENEFITS: 'manageBenefits', // 福利管理：福利类型与粉丝的卡
 }
 
 // 能力 → 所需最低角色
 export const CAP_ROLE = {
   [CAP.MANAGE_USERS]: ROLE.ADMIN,
   [CAP.OWNER_TOOLS]: ROLE.OWNER,
+  // 与后端一致：管理员与开发管理员都能看到并维护卡
+  [CAP.MANAGE_BENEFITS]: ROLE.ADMIN,
 }
 
 export const rankOf = (role) => ROLE_RANK[role] ?? 0

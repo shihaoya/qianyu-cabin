@@ -39,36 +39,74 @@ function onLogout() {
         <span class="home__brand-name">千羽的小屋</span>
       </div>
       <template v-if="!auth.isLoggedIn">
-        <BaseButton type="primary" @click="router.push('/login')">登录</BaseButton>
+        <BaseButton
+          type="primary"
+          @click="router.push('/login')"
+        >
+          登录
+        </BaseButton>
       </template>
       <template v-else>
         <div class="home__user">
           <span class="home__nick">{{ auth.user?.nickname }}</span>
-          <BaseButton type="text" @click="onLogout">退出</BaseButton>
+          <BaseButton
+            type="text"
+            @click="onLogout"
+          >
+            退出
+          </BaseButton>
         </div>
       </template>
     </header>
 
     <main class="home__main">
-      <section class="hero qy-rise" style="animation-delay:.06s">
-        <div class="hero__art"><CabinScene /></div>
-        <h1 class="hero__title">千羽的小屋</h1>
-        <p class="hero__sub">一间手作的小木屋，藏着游戏和慢慢长出的故事。</p>
-      </section>
-
-      <section class="block qy-rise" style="animation-delay:.12s">
-        <div class="block__head">
-          <h2 class="block__title">游戏区</h2>
-          <p class="block__sub">挑一个，进去坐坐</p>
+      <section
+        class="hero qy-rise"
+        style="animation-delay:.06s"
+      >
+        <div class="hero__art">
+          <CabinScene />
         </div>
-        <GameArea :games="games" @select="onPlay" />
-        <p class="block__hint">更多小游戏正在搬进小屋…</p>
+        <h1 class="hero__title">
+          千羽的小屋
+        </h1>
+        <p class="hero__sub">
+          一间手作的小木屋，藏着游戏和慢慢长出的故事。
+        </p>
       </section>
 
-      <section class="block qy-rise" style="animation-delay:.15s">
+      <section
+        class="block qy-rise"
+        style="animation-delay:.12s"
+      >
         <div class="block__head">
-          <h2 class="block__title">互动区</h2>
-          <p class="block__sub">来聊聊天，留个言</p>
+          <h2 class="block__title">
+            游戏区
+          </h2>
+          <p class="block__sub">
+            挑一个，进去坐坐
+          </p>
+        </div>
+        <GameArea
+          :games="games"
+          @select="onPlay"
+        />
+        <p class="block__hint">
+          更多小游戏正在搬进小屋…
+        </p>
+      </section>
+
+      <section
+        class="block qy-rise"
+        style="animation-delay:.15s"
+      >
+        <div class="block__head">
+          <h2 class="block__title">
+            互动区
+          </h2>
+          <p class="block__sub">
+            来聊聊天，留个言
+          </p>
         </div>
         <div class="interact">
           <EntryCard
@@ -77,13 +115,27 @@ function onLogout() {
             desc="写句话给小屋，也能匿名留下"
             :to="{ name: 'guestbook' }"
           />
+          <EntryCard
+            icon="gift"
+            title="我的福利"
+            desc="查看发放给我的卡"
+            :to="{ name: 'my-benefits' }"
+          />
         </div>
       </section>
 
-      <section v-if="can(auth.user, CAP.MANAGE_USERS)" class="block qy-rise" style="animation-delay:.16s">
+      <section
+        v-if="can(auth.user, CAP.MANAGE_USERS)"
+        class="block qy-rise"
+        style="animation-delay:.16s"
+      >
         <div class="block__head">
-          <h2 class="block__title">管理区</h2>
-          <p class="block__sub">只有你能看到的小屋后台</p>
+          <h2 class="block__title">
+            管理区
+          </h2>
+          <p class="block__sub">
+            只有你能看到的小屋后台
+          </p>
         </div>
         <div class="interact">
           <EntryCard
@@ -92,12 +144,23 @@ function onLogout() {
             desc="查看与设置成员角色"
             :to="{ name: 'admin-users' }"
           />
+          <EntryCard
+            icon="gift"
+            title="福利管理"
+            desc="维护福利类型与粉丝的卡"
+            :to="{ name: 'admin-benefits' }"
+          />
         </div>
       </section>
 
-      <section class="block qy-rise" style="animation-delay:.18s">
+      <section
+        class="block qy-rise"
+        style="animation-delay:.18s"
+      >
         <div class="about">
-          <h2 class="block__title">关于小屋</h2>
+          <h2 class="block__title">
+            关于小屋
+          </h2>
           <p class="about__text">
             千羽的专属角落，奶油色的墙、陶土色的窗，和一盏总亮着的小灯。坐会儿吧～
           </p>

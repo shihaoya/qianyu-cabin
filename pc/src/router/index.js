@@ -8,10 +8,22 @@ const routes = [
   { path: '/guestbook', name: 'guestbook', component: () => import('../views/Guestbook.vue') },
   { path: '/profile', name: 'profile', component: () => import('../views/Settings.vue') },
   {
+    path: '/my-benefits',
+    name: 'my-benefits',
+    meta: { auth: true },
+    component: () => import('../views/MyBenefits.vue'),
+  },
+  {
     path: '/admin/users',
     name: 'admin-users',
     meta: { cap: CAP.MANAGE_USERS },
     component: () => import('../views/AdminUsers.vue'),
+  },
+  {
+    path: '/admin/benefits',
+    name: 'admin-benefits',
+    meta: { cap: CAP.MANAGE_BENEFITS },
+    component: () => import('../views/AdminBenefits.vue'),
   },
   {
     path: '/icon-studio',

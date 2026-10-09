@@ -7,7 +7,8 @@
     "test": "node --test",
     "dev": "node --watch src/server.js",
     "start": "node src/server.js",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "db:deploy": "prisma migrate deploy"
   },
   "keywords": [],
   "author": "",

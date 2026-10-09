@@ -51,3 +51,61 @@ model GameRecord {
   @@index([gameKey, score])
   @@index([userId, gameKey])
 }
+
+// 福利类型：由管理员维护的卡种（如「加班卡」「减班卡」）。被粉丝持有时不可删除
+model BenefitType {
+  id          Int      @id @default(autoincrement())
+  name        String   @unique
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// 粉丝：站内粉丝档案，仅 nickname 必填，其余三项可选
+model Fan {
+  id            Int      @id @default(autoincrement())
+  nickname      String
+  userId        Int?     // 关联的系统内账号（User.id），未关联时为空
+  systemAccount String?  // 系统内账号昵称快照（冗余存储，用户改名不追溯）
+  douyinAccount String?
+  remark        String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  @@index([userId])
+}
+
+// 粉丝持有的卡：同一粉丝的同一类型至多一条记录，amount 为剩余数量
+model FanBenefit {
+  id        Int      @id @default(autoincrement())
+  fanId     Int
+  typeId    Int
+  amount    Int      @default(0)
+  updatedAt DateTime @updatedAt
+  @@unique([fanId, typeId])
+  @@index([typeId])
+}
+
+// 卡的增减流水：每次调整都留痕（理由 + 时间 + 操作人 + 变动后余额），只增不改不删
+model BenefitLog {
+  id           Int      @id @default(autoincrement())
+  fanId        Int
+  typeId       Int
+  fanNickname  String   // 粉丝昵称快照：粉丝被删除后流水仍可读
+  typeName     String   // 类型名快照
+  delta        Int      // 正数为增加，负数为减少
+  balance      Int      // 变动后的卡数量
+  reason       String
+  operatorId   Int?     // 操作人（User.id）
+  operatorName String?
+  createdAt    DateTime @default(now())
+  @@index([fanId, createdAt])
+  @@index([typeId])
+}
+
+// 常用理由：增减卡时一键带入的理由短语（如「活动奖励」「直播抽奖」），由管理员维护
+model BenefitReason {
+  id        Int      @id @default(autoincrement())
+  text      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}

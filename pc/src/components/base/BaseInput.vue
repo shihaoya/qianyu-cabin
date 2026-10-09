@@ -3,11 +3,11 @@
 name: BaseInput
 path: src/components/base/BaseInput.vue
 category: base
-purpose: 带标签/错误态的文本输入
+purpose: 带标签/占位提示/错误态的文本输入
 appliesTo: 通用
-props: modelValue:String=''; label:String=''; error:String=''; type:String='text'
+props: modelValue:String=''; label:String=''; error:String=''; type:String='text'; placeholder:String=''
 events: update:modelValue
-example: <BaseInput v-model="nick" label="昵称" :error="errMsg" />
+example: <BaseInput v-model="nick" label="昵称" placeholder="请输入昵称" :error="errMsg" />
 -->
 <script setup>
 defineProps({
@@ -15,21 +15,29 @@ defineProps({
   label: { type: String, default: '' },
   error: { type: String, default: '' },
   type: { type: String, default: 'text' },
+  placeholder: { type: String, default: '' },
 })
 defineEmits(['update:modelValue'])
 </script>
 
 <template>
   <label class="base-input">
-    <span v-if="label" class="base-input__label">{{ label }}</span>
+    <span
+      v-if="label"
+      class="base-input__label"
+    >{{ label }}</span>
     <input
       class="base-input__field"
       :class="{ 'has-error': error }"
       :type="type"
+      :placeholder="placeholder"
       :value="modelValue"
       @input="$emit('update:modelValue', $event.target.value)"
-    />
-    <span v-if="error" class="base-input__error">{{ error }}</span>
+    >
+    <span
+      v-if="error"
+      class="base-input__error"
+    >{{ error }}</span>
   </label>
 </template>
 
@@ -52,6 +60,10 @@ defineEmits(['update:modelValue'])
   background: var(--surface);
   color: var(--text);
   font: inherit;
+}
+.base-input__field::placeholder {
+  color: var(--muted);
+  opacity: 0.7;
 }
 .base-input__field.has-error {
   border-color: #d9534f;

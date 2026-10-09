@@ -45,13 +45,29 @@ example: <Xxx />
 - events：无
 - 示例：<BaseCard title="游戏区"><GameArea /></BaseCard>
 
+### BaseIcon
+- 路径：src/components/base/BaseIcon.vue
+- 用途：通用内联 SVG 图标：name 调用内置 feather 风图标，或 paths 传入自定义 path 直接绘制
+- 适用端：PC
+- props：name(String), paths(String|Array), size(Number=24), color(String='currentColor'), strokeWidth(Number=1.8), viewBox(String='0 0 24 24'), fill(String='none')
+- events：无
+- 示例：<BaseIcon name="home" /> / <BaseIcon :paths="['M3 9l9-7 9 7']" :size="32" color="var(--primary)" />
+
 ### BaseInput
 - 路径：src/components/base/BaseInput.vue
-- 用途：带标签/错误态的文本输入
+- 用途：带标签/占位提示/错误态的文本输入
 - 适用端：通用
-- props：modelValue:String=''; label:String=''; error:String=''; type:String='text'
+- props：modelValue:String=''; label:String=''; error:String=''; type:String='text'; placeholder:String=''
 - events：update:modelValue
-- 示例：<BaseInput v-model="nick" label="昵称" :error="errMsg" />
+- 示例：<BaseInput v-model="nick" label="昵称" placeholder="请输入昵称" :error="errMsg" />
+
+### BaseModal
+- 路径：src/components/base/BaseModal.vue
+- 用途：统一弹窗外壳：居中弹窗 / 移动端底部弹层（sheet）两种形态，含标题区右上角关闭按钮、内容插槽与底部操作插槽，避免各页面重复写遮罩样式
+- 适用端：通用
+- props：title(String=''); width(String='480px'); sheet(Boolean=false)
+- events：close:void — 仅由右上角关闭按钮触发（点遮罩 / Esc 均不关闭）
+- 示例：<BaseModal title="编辑粉丝" width="520px" @close="editing = null"><BaseInput v-model="name" label="昵称" /><template #footer><BaseButton type="primary">保存</BaseButton></template></BaseModal>
 
 ### CabinLogo
 - 路径：src/components/base/CabinLogo.vue
@@ -87,7 +103,7 @@ example: <Xxx />
 
 ### GameIcon
 - 路径：src/components/base/GameIcon.vue
-- 用途：按 type 渲染手绘风图标（内联 SVG，暖色配色）：游戏 climb、留言板 message、用户管理 users，便于扩展
+- 用途：按 type 渲染手绘风图标（内联 SVG，暖色配色）：游戏 climb/fly/slap、留言板 message、用户管理 users、福利 gift，便于扩展
 - 适用端：PC
 - props：type(String, 必填), size(Number=56)
 - events：无
@@ -102,4 +118,12 @@ example: <Xxx />
 - props：games(Array)
 - events：select(game)
 - 示例：<GameArea :games="games" @select="onPlay" />
+
+### GameShell
+- 路径：src/components/GameShell.vue
+- 用途：游戏通用外壳（PC）：仅提供返回、标题、暂停/继续按钮与游戏棋盘插槽（#board）。
+- 适用端：PC
+- props：game(Object, 必填)
+- events：pause
+- 示例：<GameShell :game="game" @pause="onPause"><template #board><MyGame/></template></GameShell>
 

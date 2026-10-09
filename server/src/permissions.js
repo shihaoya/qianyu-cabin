@@ -22,12 +22,15 @@ export const CAP = {
   MANAGE_USERS: 'manageUsers', // 查看 / 修改用户
   SET_OWNER: 'setOwner', // 将他人设为开发管理员
   OWNER_TOOLS: 'ownerTools', // 仅开发管理员可见的开发工具（后端当前无对应路由）
+  MANAGE_BENEFITS: 'manageBenefits', // 福利管理：福利类型与粉丝的卡
 }
 
 // 能力 → 所需最低角色（role 的 rank 大于等于该值即可）
 export const CAP_ROLE = {
   [CAP.MANAGE_USERS]: ROLE.ADMIN,
   [CAP.SET_OWNER]: ROLE.OWNER,
+  // 福利管理与用户管理同级：管理员与开发管理员均可维护
+  [CAP.MANAGE_BENEFITS]: ROLE.ADMIN,
 }
 
 export const rankOf = (role) => ROLE_RANK[role] ?? 0

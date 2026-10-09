@@ -16,4 +16,15 @@ export const ERR = {
   GAME_NOT_FOUND: (message = '游戏不存在') => new AppError(1007, message, 404),
   SAVE_INVALID: (message = '存档状态非法') => new AppError(1008, message, 400),
   RESULT_INVALID: (message = '游戏结果非法') => new AppError(1009, message, 400),
+  // 福利管理（以下为福利类型 / 粉丝卡相关业务码）
+  TYPE_NOT_FOUND: (message = '福利类型不存在') => new AppError(1010, message, 404),
+  TYPE_NAME_TAKEN: (message = '该福利类型已存在') => new AppError(1011, message, 400),
+  TYPE_IN_USE: (message = '仍有粉丝持有该类型的卡，不能删除') => new AppError(1012, message, 400),
+  FAN_NOT_FOUND: (message = '粉丝不存在') => new AppError(1013, message, 404),
+  BENEFIT_NOT_ENOUGH: (message = '卡数量不足，扣减后不能为负') => new AppError(1014, message, 400),
+  REASON_REQUIRED: (message = '请填写增减卡的理由') => new AppError(1015, message, 400),
+  ADJUST_INVALID: (message = '调整数量必须是不为 0 的整数') => new AppError(1016, message, 400),
+  // 常用理由
+  COMMON_REASON_TAKEN: (message = '该常用理由已存在') => new AppError(1017, message, 400),
+  COMMON_REASON_NOT_FOUND: (message = '常用理由不存在') => new AppError(1018, message, 404),
 }

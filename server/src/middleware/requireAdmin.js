@@ -12,3 +12,4 @@ export function requireCap(cap) {
 // 语义化别名（底层仍走 can，便于统一排查）
 export const requireAdmin = requireCap(CAP.MANAGE_USERS)
 export const requireOwner = requireCap(CAP.SET_OWNER)
+export const requireBenefitsAdmin = requireCap(CAP.MANAGE_BENEFITS)

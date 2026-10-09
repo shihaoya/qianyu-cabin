@@ -30,12 +30,19 @@ async function onPlay(game) {
     <AppHeader />
 
     <main class="home__main">
-      <section class="hero qy-rise" style="animation-delay:.06s">
+      <section
+        class="hero qy-rise"
+        style="animation-delay:.06s"
+      >
         <div class="hero__text">
-          <p class="hero__eyebrow">欢迎光临 · cozy little cabin</p>
-          <h1 class="hero__title">千羽的小屋</h1>
+          <p class="hero__eyebrow">
+            欢迎光临 · cozy little cabin
+          </p>
+          <h1 class="hero__title">
+            千羽的小屋
+          </h1>
           <p class="hero__sub">
-            一间手作的小木屋，藏着游戏、闲聊和慢慢长出的故事。<br />
+            一间手作的小木屋，藏着游戏、闲聊和慢慢长出的故事。<br>
             进来坐坐吧～
           </p>
           <div class="hero__actions">
@@ -46,7 +53,10 @@ async function onPlay(game) {
             >
               登录小屋
             </BaseButton>
-            <span v-else class="hero__welcome">很高兴见到你，{{ auth.user?.nickname }}</span>
+            <span
+              v-else
+              class="hero__welcome"
+            >很高兴见到你，{{ auth.user?.nickname }}</span>
           </div>
         </div>
         <div class="hero__art">
@@ -54,19 +64,38 @@ async function onPlay(game) {
         </div>
       </section>
 
-      <section class="block qy-rise" style="animation-delay:.12s">
+      <section
+        class="block qy-rise"
+        style="animation-delay:.12s"
+      >
         <div class="block__head">
-          <h2 class="block__title">游戏区</h2>
-          <p class="block__sub">挑一个，进去坐坐</p>
+          <h2 class="block__title">
+            游戏区
+          </h2>
+          <p class="block__sub">
+            挑一个，进去坐坐
+          </p>
         </div>
-        <GameArea :games="games" @select="onPlay" />
-        <p class="block__hint">更多小游戏正在搬进小屋…</p>
+        <GameArea
+          :games="games"
+          @select="onPlay"
+        />
+        <p class="block__hint">
+          更多小游戏正在搬进小屋…
+        </p>
       </section>
 
-      <section class="block qy-rise" style="animation-delay:.15s">
+      <section
+        class="block qy-rise"
+        style="animation-delay:.15s"
+      >
         <div class="block__head">
-          <h2 class="block__title">互动区</h2>
-          <p class="block__sub">来聊聊天，留个言</p>
+          <h2 class="block__title">
+            互动区
+          </h2>
+          <p class="block__sub">
+            来聊聊天，留个言
+          </p>
         </div>
         <div class="tile-grid">
           <EntryCard
@@ -76,13 +105,28 @@ async function onPlay(game) {
             desc="写句话给小屋，也能匿名留下"
             :to="{ name: 'guestbook' }"
           />
+          <EntryCard
+            tile
+            icon="gift"
+            title="我的福利"
+            desc="查看发放给我的卡"
+            :to="{ name: 'my-benefits' }"
+          />
         </div>
       </section>
 
-      <section v-if="can(auth.user, CAP.MANAGE_USERS)" class="block qy-rise" style="animation-delay:.16s">
+      <section
+        v-if="can(auth.user, CAP.MANAGE_USERS)"
+        class="block qy-rise"
+        style="animation-delay:.16s"
+      >
         <div class="block__head">
-          <h2 class="block__title">管理区</h2>
-          <p class="block__sub">只有你能看到的小屋后台</p>
+          <h2 class="block__title">
+            管理区
+          </h2>
+          <p class="block__sub">
+            只有你能看到的小屋后台
+          </p>
         </div>
         <div class="tile-grid">
           <EntryCard
@@ -92,13 +136,25 @@ async function onPlay(game) {
             desc="查看与设置成员角色"
             :to="{ name: 'admin-users' }"
           />
+          <EntryCard
+            tile
+            icon="gift"
+            title="福利管理"
+            desc="维护福利类型与粉丝的卡"
+            :to="{ name: 'admin-benefits' }"
+          />
         </div>
       </section>
 
-      <section class="block qy-rise" style="animation-delay:.18s">
+      <section
+        class="block qy-rise"
+        style="animation-delay:.18s"
+      >
         <BaseCard>
           <div class="about">
-            <h2 class="block__title">关于小屋</h2>
+            <h2 class="block__title">
+              关于小屋
+            </h2>
             <p class="about__text">
               千羽的专属角落。没有繁琐的界面，只有奶油色的墙、陶土色的窗，和一盏总亮着的小灯。希望你能在这里放松一会儿。
             </p>
@@ -107,7 +163,9 @@ async function onPlay(game) {
       </section>
     </main>
 
-    <footer class="home__footer">千羽的小屋 · 用心慢慢搭起来的</footer>
+    <footer class="home__footer">
+      千羽的小屋 · 用心慢慢搭起来的
+    </footer>
   </div>
 </template>
 

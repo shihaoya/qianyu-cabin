@@ -65,11 +65,24 @@ onMounted(load)
     <AppHeader />
     <main class="page__main">
       <section class="qy-rise">
-        <h1 class="au-title">用户管理</h1>
-        <p class="au-sub">共 {{ total }} 位用户 · 仅管理员与开发管理员可见</p>
-        <p v-if="error" class="au-error">{{ error }}</p>
+        <h1 class="au-title">
+          用户管理
+        </h1>
+        <p class="au-sub">
+          共 {{ total }} 位用户 · 仅管理员与开发管理员可见
+        </p>
+        <p
+          v-if="error"
+          class="au-error"
+        >
+          {{ error }}
+        </p>
         <div class="au-list">
-          <BaseCard v-for="u in users" :key="u.id" class="au-item">
+          <BaseCard
+            v-for="u in users"
+            :key="u.id"
+            class="au-item"
+          >
             <div class="au-item__main">
               <span class="au-item__name">{{ u.nickname }}</span>
               <span class="au-item__meta">
@@ -83,7 +96,10 @@ onMounted(load)
             >
               编辑
             </BaseButton>
-            <span v-else class="au-item__locked">不可编辑</span>
+            <span
+              v-else
+              class="au-item__locked"
+            >不可编辑</span>
           </BaseCard>
         </div>
       </section>
@@ -91,15 +107,51 @@ onMounted(load)
 
     <!-- 编辑用户：底部弹出表单 -->
     <transition name="au-slide">
-      <div v-if="editing" class="au-sheet-wrap">
-        <div class="au-sheet-mask" @click="editing = null" />
-        <div class="au-sheet" role="dialog" aria-modal="true">
+      <!-- 遮罩不响应点击：避免误触关闭，只能点右上角 ✕ 或取消 -->
+      <div
+        v-if="editing"
+        class="au-sheet-wrap"
+      >
+        <div class="au-sheet-mask" />
+        <div
+          class="au-sheet"
+          role="dialog"
+          aria-modal="true"
+        >
           <div class="au-sheet__handle" />
-          <h3 class="au-sheet__title">编辑用户</h3>
+          <div class="au-sheet__head">
+            <h3 class="au-sheet__title">
+              编辑用户
+            </h3>
+            <button
+              class="au-close"
+              type="button"
+              title="关闭"
+              aria-label="关闭"
+              @click="editing = null"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                width="18"
+                height="18"
+                fill="none"
+                aria-hidden="true"
+              >
+                <path
+                  d="M6 6l12 12M18 6L6 18"
+                  stroke="currentColor"
+                  stroke-width="2.2"
+                  stroke-linecap="round"
+                />
+              </svg>
+            </button>
+          </div>
 
           <div class="au-field">
             <span class="au-field__label">账号（昵称）</span>
-            <div class="au-field__readonly">{{ editing.nickname }}</div>
+            <div class="au-field__readonly">
+              {{ editing.nickname }}
+            </div>
           </div>
 
           <div class="au-field">
@@ -112,12 +164,12 @@ onMounted(load)
                 :class="{ 'is-disabled': editing.id === auth.user.id }"
               >
                 <input
+                  v-model="draftRole"
                   type="radio"
                   name="role"
                   :value="role"
-                  v-model="draftRole"
                   :disabled="editing.id === auth.user.id"
-                />
+                >
                 <span>{{ roleLabel(role) }}</span>
               </label>
             </div>
@@ -131,7 +183,12 @@ onMounted(load)
           </div>
 
           <div class="au-sheet__actions">
-            <BaseButton type="text" @click="editing = null">取消</BaseButton>
+            <BaseButton
+              type="text"
+              @click="editing = null"
+            >
+              取消
+            </BaseButton>
             <BaseButton
               type="primary"
               :loading="savingEdit"
@@ -224,11 +281,40 @@ onMounted(load)
   background: var(--primary-soft);
   margin: 4px auto 14px;
 }
+.au-sheet__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
 .au-sheet__title {
-  margin: 0 0 16px;
+  margin: 0;
   font-family: var(--font-display);
   font-size: 19px;
   color: var(--text);
+}
+.au-close {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.au-close:active {
+  background: rgba(201, 116, 59, 0.18);
+  color: var(--primary);
+}
+.au-close:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: -2px;
 }
 .au-field {
   margin-bottom: 16px;

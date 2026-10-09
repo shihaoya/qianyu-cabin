@@ -11,15 +11,65 @@ const { isOpen, mode, title, message, confirmText, cancelText, onOk, onCancel } 
 
 <template>
   <transition name="cd-fade">
-    <div v-if="isOpen" class="cd-mask" @click.self="onCancel">
-      <div class="cd-box" role="dialog" aria-modal="true">
-        <h3 class="cd-title">{{ title }}</h3>
-        <p v-if="message" class="cd-msg">{{ message }}</p>
+    <!-- 遮罩不响应点击：确认框只能由 ✕ / 取消 / 确定关闭，避免误触 -->
+    <div
+      v-if="isOpen"
+      class="cd-mask"
+    >
+      <div
+        class="cd-box"
+        role="dialog"
+        aria-modal="true"
+      >
+        <div class="cd-head">
+          <h3 class="cd-title">
+            {{ title }}
+          </h3>
+          <button
+            class="cd-close"
+            type="button"
+            title="关闭"
+            aria-label="关闭"
+            @click="onCancel"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              width="18"
+              height="18"
+              fill="none"
+              aria-hidden="true"
+            >
+              <path
+                d="M6 6l12 12M18 6L6 18"
+                stroke="currentColor"
+                stroke-width="2.2"
+                stroke-linecap="round"
+              />
+            </svg>
+          </button>
+        </div>
+        <p
+          v-if="message"
+          class="cd-msg"
+        >
+          {{ message }}
+        </p>
         <div class="cd-actions">
-          <button v-if="mode === 'confirm'" type="button" class="cd-btn cd-cancel" @click="onCancel">
+          <button
+            v-if="mode === 'confirm'"
+            type="button"
+            class="cd-btn cd-cancel"
+            @click="onCancel"
+          >
             {{ cancelText }}
           </button>
-          <button type="button" class="cd-btn cd-ok" @click="onOk">{{ confirmText }}</button>
+          <button
+            type="button"
+            class="cd-btn cd-ok"
+            @click="onOk"
+          >
+            {{ confirmText }}
+          </button>
         </div>
       </div>
     </div>
@@ -49,11 +99,44 @@ const { isOpen, mode, title, message, confirmText, cancelText, onOk, onCancel } 
   padding: 22px 20px 16px;
   text-align: center;
 }
+.cd-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
 .cd-title {
-  margin: 0 0 8px;
+  margin: 0;
   font-family: var(--font-display);
   font-size: 17px;
   color: var(--text);
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cd-close {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.cd-close:active {
+  background: rgba(201, 116, 59, 0.18);
+  color: var(--primary);
+}
+.cd-close:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: -2px;
 }
 .cd-msg {
   margin: 0 0 18px;

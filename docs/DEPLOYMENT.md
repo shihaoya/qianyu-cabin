@@ -65,7 +65,7 @@ server {
 
 ## 4. 发布流程
 
-1. 后端：`cd server && pnpm install --prod && pnpm prisma migrate deploy && node src/server.js`（建议用 pm2 / systemd 守护进程，非文档范围，按环境自选）。
+1. 后端：`cd server && pnpm install --prod && pnpm prisma generate && pnpm db:deploy && node src/server.js`（建议用 pm2 / systemd 守护进程，非文档范围，按环境自选）。
 2. PC：`cd pc && pnpm install && pnpm build`，将 `pc/dist` 同步到 nginx 的 `pc/dist` 根。
 3. 移动端：`cd mobile && pnpm install && pnpm build`，将 `mobile/dist` 同步到 nginx 的 `mobile/dist` 根。
 4. 重启/重载 nginx：`nginx -s reload`。

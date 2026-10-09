@@ -27,6 +27,7 @@
 - **断点**：以 `max-width: 480px` 为主适配目标，必要时 `481–768px` 兜底；不针对桌面做复杂布局。
 - **基础组件**：与 PC 端共用同一套自研组件（`BaseButton`/`BaseCard`/`BaseInput` 等）与同一套内联 SVG 图标，仅可通过 props 调整尺寸/密度，不得各写一套。
 - **交互**：列表下拉刷新、上拉加载（如引入）用统一组合式函数 `usePullLoad`；避免依赖第三方 UI 库实现。
+- **弹窗**：默认底部弹层（`BaseModal` 的 `sheet` 默认 `true`），与 PC 端同一约定——**点击遮罩不关闭**，只能点标题区右上角 ✕ 或内部取消/确定按钮关闭。
 - **组件复用与文档规则**：与 `DEV-PC.md` 第 7 节「组件复用与自动同步文档规则」完全一致——先复用后新建、相似功能先封装、每个组件在 `.vue` 顶部写 `@doc` 块、`docs/COMPONENTS.md` 由 `scripts/sync-components.mjs` 自动生成（移动端维护 `mobile/docs/COMPONENTS.md`）。`docs/COMPONENTS.md` 是检索可复用组件的唯一入口，禁止手改。
 
 ## 一致性红线
