@@ -307,6 +307,18 @@ test('fan: 改名后历史流水的粉丝名快照同步更新', async () => {
 
 // ---------- 我的福利（按登录账号反查粉丝档案，只读） ----------
 
+test('fan: 列表按昵称 A→Z 排序（同昵称按 id 稳定）', async () => {
+  await fans.createFan({ nickname: '__zulu' })
+  await fans.createFan({ nickname: '__alpha' })
+  await fans.createFan({ nickname: '__mike' })
+
+  const { list } = await fans.listFans({ pageSize: 200 })
+  const names = list.map((f) => f.nickname)
+  // SQLite 文本比较是二进制升序，与 JS 的 < > 比较一致
+  const expected = [...names].sort((a, b) => (a > b ? 1 : a < b ? -1 : 0))
+  assert.deepEqual(names, expected)
+})
+
 test('myBenefits: 绑定的账号能看到自己的卡与最近流水', async () => {
   const tid = await typeIdByName('调休卡')
   const user = await userService.register(`__my_${Date.now()}`, 'pw123456')
@@ -375,11 +387,12 @@ test('reason: 空文本 / 超长抛 1001，重名抛 1017', async () => {
   await assert.rejects(() => reasons.createReason({ text: ' 活动奖励 ' }), (e) => e.code === 1017)
 })
 
-test('reason: 可改名；改名为已有文本抛 1017，id 不存在抛 1018', async () => {
+test('reason: 可改名改类型；改名为已有文本抛 1017，id 不存在抛 1018', async () => {
   const list = await reasons.listReasons()
   const target = list.find((r) => r.text === '直播抽奖中奖')
-  const updated = await reasons.updateReason(target.id, { text: '抽奖中奖' })
+  const updated = await reasons.updateReason(target.id, { text: '抽奖中奖', type: 'add' })
   assert.equal(updated.text, '抽奖中奖')
+  assert.equal(updated.type, 'add')
 
   await assert.rejects(
     () => reasons.updateReason(target.id, { text: '活动奖励' }),
@@ -389,6 +402,24 @@ test('reason: 可改名；改名为已有文本抛 1017，id 不存在抛 1018',
     () => reasons.updateReason(99999, { text: '不存在' }),
     (e) => e.code === 1018,
   )
+})
+
+test('reason: 不传 type 默认为 common（兼容历史数据与旧客户端）', async () => {
+  const created = await reasons.createReason({ text: '缺省类型理由' })
+  assert.equal(created.type, 'common')
+
+  const updated = await reasons.updateReason(created.id, { text: '缺省类型理由2' })
+  assert.equal(updated.type, 'common', '只改文本时不应把类型重置掉')
+
+  await reasons.removeReason(created.id)
+})
+
+test('reason: type 只能是 common/add/sub，其它值抛 1001', async () => {
+  assert.equal((await reasons.createReason({ text: '增加专用理由', type: 'add' })).type, 'add')
+  assert.equal((await reasons.createReason({ text: '减少专用理由', type: 'sub' })).type, 'sub')
+  await assert.rejects(() => reasons.createReason({ text: '非法类型', type: 'xxx' }), (e) => e.code === 1001)
+  const target = (await reasons.listReasons()).find((r) => r.text === '减少专用理由')
+  await assert.rejects(() => reasons.updateReason(target.id, { type: 'xxx' }), (e) => e.code === 1001)
 })
 
 test('reason: 删除后可重新添加同名；删除不存在的 id 抛 1018', async () => {

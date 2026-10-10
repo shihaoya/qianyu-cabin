@@ -14,6 +14,7 @@ const FAN_SELECT = {
 }
 
 // 粉丝列表：附带其持有（数量 > 0）的卡概览
+// 按昵称 A→Z 排序（同昵称再按 id，顺序稳定），方便按名字快速翻找
 export async function listFans({ page = 1, pageSize = 20, keyword = '' } = {}) {
   const kw = (keyword || '').trim()
   const where = kw
@@ -30,7 +31,7 @@ export async function listFans({ page = 1, pageSize = 20, keyword = '' } = {}) {
     prisma.fan.count({ where }),
     prisma.fan.findMany({
       where,
-      orderBy: { createdAt: 'desc' },
+      orderBy: [{ nickname: 'asc' }, { id: 'asc' }],
       skip: (page - 1) * pageSize,
       take: pageSize,
       select: FAN_SELECT,

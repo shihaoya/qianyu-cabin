@@ -103,9 +103,11 @@ model BenefitLog {
 }
 
 // 常用理由：增减卡时一键带入的理由短语（如「活动奖励」「直播抽奖」），由管理员维护
+// type：common 公共（增加/减少都可选）/ add 仅增加时用 / sub 仅减少时用；缺省 common，保证历史数据平滑升级
 model BenefitReason {
   id        Int      @id @default(autoincrement())
   text      String   @unique
+  type      String   @default("common")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
