@@ -7,3 +7,7 @@ export function listUsers(params = {}) {
 export function updateRole(id, role) {
   return api.patch(`/admin/users/${id}`, { role })
 }
+
+export function deleteUser(id) {
+  return api.delete(`/admin/users/${id}`)
+}

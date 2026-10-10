@@ -5,6 +5,7 @@ export const useAuthStore = defineStore('auth', {
   state: () => ({
     token: localStorage.getItem('qianyu_token') || '',
     user: null,
+    _userPromise: null,
   }),
   getters: {
     isLoggedIn: (state) => !!state.token,
@@ -22,6 +23,18 @@ export const useAuthStore = defineStore('auth', {
     async fetchMe() {
       const data = await apiMe()
       this.user = data.user
+    },
+    // 确保用户信息已加载：已登录但 user 为空时调 fetchMe()，
+    // 并缓存 Promise 防止并发重复请求；路由守卫刷新鉴权时统一走这里。
+    ensureUser() {
+      if (!this.token) return Promise.resolve()
+      if (this.user) return Promise.resolve()
+      if (!this._userPromise) {
+        this._userPromise = this.fetchMe().finally(() => {
+          this._userPromise = null
+        })
+      }
+      return this._userPromise
     },
     _setSession(data) {
       this.token = data.token

@@ -39,8 +39,11 @@ const router = createRouter({
   routes,
 })
 
-router.beforeEach((to) => {
+router.beforeEach(async (to) => {
   const auth = useAuthStore()
+  // 刷新时 token 有但 user 还没拉回来，先等 ensureUser() 再判定权限，
+  // 否则有权限的管理页会被误判踢回首页。
+  await auth.ensureUser()
   if (to.name === 'login' && auth.isLoggedIn) return { name: 'home' }
   if (to.meta.cap && !can(auth.user, to.meta.cap)) return { name: 'home' }
   if (to.meta.auth && !auth.isLoggedIn) return { name: 'login' }

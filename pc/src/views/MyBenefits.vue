@@ -21,13 +21,6 @@ async function load() {
   }
 }
 
-function fmtTime(value) {
-  if (!value) return ''
-  const d = new Date(value)
-  const pad = (n) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
-}
-
 const heldCount = computed(() => (data.value.cards || []).filter((c) => c.amount > 0).length)
 
 onMounted(load)
@@ -94,46 +87,6 @@ onMounted(load)
               class="mb-empty"
             >
               还没有任何福利类型，等管理员添加后这里会显示。
-            </p>
-          </div>
-
-          <h2 class="mb-logs__title">
-            发放记录
-          </h2>
-          <div class="mb-logs">
-            <table
-              v-if="data.logs.length"
-              class="mb-table"
-            >
-              <thead>
-                <tr>
-                  <th>时间</th>
-                  <th>类型</th>
-                  <th>变动</th>
-                  <th>余额</th>
-                  <th>理由</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr
-                  v-for="log in data.logs"
-                  :key="log.id"
-                >
-                  <td>{{ fmtTime(log.createdAt) }}</td>
-                  <td>{{ log.typeName }}</td>
-                  <td :class="log.delta > 0 ? 'is-add' : 'is-sub'">
-                    {{ log.delta > 0 ? `+${log.delta}` : log.delta }}
-                  </td>
-                  <td>{{ log.balance }}</td>
-                  <td>{{ log.reason }}</td>
-                </tr>
-              </tbody>
-            </table>
-            <p
-              v-else
-              class="mb-empty mb-empty--inline"
-            >
-              还没有发放记录
             </p>
           </div>
         </template>
@@ -217,70 +170,5 @@ onMounted(load)
   color: var(--muted);
   font-size: 12px;
   line-height: 1.7;
-}
-
-.mb-logs__title {
-  margin: 0 0 10px;
-  color: var(--text);
-  font-size: 16px;
-}
-/* 记录区定高滚动：记录多也不会把页面拉得很长 */
-.mb-logs {
-  max-height: 300px;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  border: 1px solid rgba(120, 90, 50, 0.12);
-  border-radius: 12px;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(120, 90, 50, 0.28) transparent;
-}
-.mb-logs::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-.mb-logs::-webkit-scrollbar-track {
-  background: transparent;
-}
-.mb-logs::-webkit-scrollbar-thumb {
-  background: rgba(120, 90, 50, 0.28);
-  border-radius: 999px;
-  border: 2px solid transparent;
-  background-clip: content-box;
-}
-.mb-logs::-webkit-scrollbar-thumb:hover {
-  background: rgba(120, 90, 50, 0.45);
-  background-clip: content-box;
-}
-.mb-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 13px;
-}
-.mb-table th,
-.mb-table td {
-  padding: 9px 10px;
-  text-align: left;
-  border-bottom: 1px solid rgba(120, 90, 50, 0.12);
-  color: var(--text);
-}
-.mb-table th {
-  position: sticky;
-  top: 0;
-  z-index: 1;
-  background: var(--surface);
-  box-shadow: inset 0 -1px 0 rgba(120, 90, 50, 0.18);
-  color: var(--muted);
-  font-weight: 600;
-}
-.mb-table tr:last-child td {
-  border-bottom: none;
-}
-.is-add {
-  color: var(--accent);
-  font-weight: 600;
-}
-.is-sub {
-  color: #d9534f;
-  font-weight: 600;
 }
 </style>

@@ -21,13 +21,6 @@ async function load() {
   }
 }
 
-function fmtTime(value) {
-  if (!value) return ''
-  const d = new Date(value)
-  const pad = (n) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
-}
-
 const heldCount = computed(() => (data.value.cards || []).filter((c) => c.amount > 0).length)
 
 onMounted(load)
@@ -94,37 +87,6 @@ onMounted(load)
               class="mb-empty"
             >
               还没有任何福利类型，等管理员添加后这里会显示。
-            </p>
-          </div>
-
-          <h2 class="mb-logs__title">
-            发放记录
-          </h2>
-          <div class="mb-logs">
-            <div
-              v-for="log in data.logs"
-              :key="log.id"
-              class="mb-log"
-            >
-              <div class="mb-log__head">
-                <span class="mb-log__type">{{ log.typeName }}</span>
-                <span
-                  class="mb-log__delta"
-                  :class="log.delta > 0 ? 'is-add' : 'is-sub'"
-                >
-                  {{ log.delta > 0 ? `+${log.delta}` : log.delta }}
-                </span>
-                <span class="mb-log__balance">余 {{ log.balance }}</span>
-              </div>
-              <div class="mb-log__meta">
-                {{ fmtTime(log.createdAt) }} · {{ log.reason }}
-              </div>
-            </div>
-            <p
-              v-if="!data.logs.length"
-              class="mb-empty mb-empty--inline"
-            >
-              还没有发放记录
             </p>
           </div>
         </template>
@@ -206,63 +168,5 @@ onMounted(load)
   color: var(--muted);
   font-size: 12px;
   line-height: 1.7;
-}
-
-.mb-logs__title {
-  margin: 0 0 10px;
-  color: var(--text);
-  font-size: 15px;
-}
-/* 记录区定高滚动：记录多也不会把页面拉得很长 */
-.mb-logs {
-  max-height: 40vh;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  padding-right: 2px;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(120, 90, 50, 0.28) transparent;
-}
-.mb-logs::-webkit-scrollbar {
-  width: 6px;
-}
-.mb-logs::-webkit-scrollbar-track {
-  background: transparent;
-}
-.mb-logs::-webkit-scrollbar-thumb {
-  background: rgba(120, 90, 50, 0.3);
-  border-radius: 999px;
-}
-.mb-log {
-  padding: 10px 12px;
-  margin-bottom: 8px;
-  border-radius: 12px;
-  background: var(--bg);
-}
-.mb-log__head {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.mb-log__type {
-  font-weight: 600;
-  font-size: 14px;
-}
-.mb-log__balance {
-  margin-left: auto;
-  color: var(--muted);
-  font-size: 12px;
-}
-.mb-log__meta {
-  margin-top: 4px;
-  color: var(--muted);
-  font-size: 12px;
-}
-.is-add {
-  color: var(--accent);
-  font-weight: 600;
-}
-.is-sub {
-  color: #d9534f;
-  font-weight: 600;
 }
 </style>

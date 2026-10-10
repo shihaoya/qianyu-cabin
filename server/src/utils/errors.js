@@ -27,4 +27,6 @@ export const ERR = {
   // 常用理由
   COMMON_REASON_TAKEN: (message = '该常用理由已存在') => new AppError(1017, message, 400),
   COMMON_REASON_NOT_FOUND: (message = '常用理由不存在') => new AppError(1018, message, 404),
+  // 用户管理
+  USER_NOT_FOUND: (message = '用户不存在') => new AppError(1019, message, 404),
 }

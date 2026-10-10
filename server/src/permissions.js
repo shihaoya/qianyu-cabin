@@ -20,6 +20,7 @@ export const ROLE_LABEL = {
 // 能力枚举（key 为语义常量，value 为 can() 判定时使用的字符串）
 export const CAP = {
   MANAGE_USERS: 'manageUsers', // 查看 / 修改用户
+  DELETE_USERS: 'deleteUsers', // 删除用户：开发管理员可删管理员与用户，管理员只能删用户
   SET_OWNER: 'setOwner', // 将他人设为开发管理员
   OWNER_TOOLS: 'ownerTools', // 仅开发管理员可见的开发工具（后端当前无对应路由）
   MANAGE_BENEFITS: 'manageBenefits', // 福利管理：福利类型与粉丝的卡
@@ -28,6 +29,8 @@ export const CAP = {
 // 能力 → 所需最低角色（role 的 rank 大于等于该值即可）
 export const CAP_ROLE = {
   [CAP.MANAGE_USERS]: ROLE.ADMIN,
+  // 与改角色同级：管理员只能动用户，开发管理员可动管理员与用户
+  [CAP.DELETE_USERS]: ROLE.ADMIN,
   [CAP.SET_OWNER]: ROLE.OWNER,
   // 福利管理与用户管理同级：管理员与开发管理员均可维护
   [CAP.MANAGE_BENEFITS]: ROLE.ADMIN,
@@ -64,4 +67,14 @@ export function canSetRole(actor, target, newRole) {
   if (actor.id === target.id) return false
   if (target.role === ROLE.OWNER && actor.role !== ROLE.OWNER) return false
   return canAssignRole(actor, newRole)
+}
+
+// actor 能否删除 target 账号：① 不能删自己 ② 开发管理员账号不可删除 ③ 自身层级须高于目标角色层级。
+// 与 canSetRole 的「>=」不同，这里是「>」：管理员（rank2）只能删用户（rank1），删不了管理员；
+// 开发管理员（rank3）可删管理员与用户。
+export function canDeleteUser(actor, target) {
+  if (!actor || !target) return false
+  if (actor.id === target.id) return false
+  if (target.role === ROLE.OWNER) return false
+  return rankOf(actor.role) > rankOf(target.role)
 }

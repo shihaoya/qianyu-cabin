@@ -53,3 +53,14 @@ export async function listUsers({ page = 1, pageSize = 20 } = {}) {
   })
   return { list, total }
 }
+
+// 删除账号：只删 User 行本身。所有业务表都不设外键，旧数据全部保留（留言/游戏记录/福利流水），
+// 新注册的同昵称账号拿到的是全新 id，与旧数据天然无关联 —— 这正是「同名可再注册、不关联旧数据」的语义。
+// 账号关联逐个解绑（粉丝档案保留，福利不受影响）。
+export async function removeUser(id) {
+  await prisma.$transaction([
+    prisma.fan.updateMany({ where: { userId: id }, data: { userId: null, systemAccount: null } }),
+    prisma.benefitLog.updateMany({ where: { operatorId: id }, data: { operatorId: null } }),
+    prisma.user.delete({ where: { id } }),
+  ])
+}

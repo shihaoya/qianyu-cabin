@@ -1,8 +1,9 @@
 <script setup>
 import { ref, onMounted } from 'vue'
-import { listUsers, updateRole } from '../api/admin.js'
+import { listUsers, updateRole, deleteUser } from '../api/admin.js'
 import { useAuthStore } from '../stores/auth.js'
-import { roleLabel, ROLES, canAssignRole, canSetRole } from '../permissions.js'
+import { roleLabel, ROLES, canAssignRole, canSetRole, canDeleteUser } from '../permissions.js'
+import { confirm } from '../composables/useConfirm.js'
 import AppHeader from '../components/base/AppHeader.vue'
 import BaseCard from '../components/base/BaseCard.vue'
 import BaseButton from '../components/base/BaseButton.vue'
@@ -54,6 +55,23 @@ async function saveEdit() {
   }
 }
 
+async function removeUser(u) {
+  if (!canDeleteUser(auth.user, u)) return
+  const ok = await confirm({
+    title: '删除用户',
+    message: `确定删除「${u.nickname}」吗？删除后 TA 的留言、游戏记录与福利流水都会保留，该昵称可以重新注册，但新账号不会关联旧数据。`,
+    confirmText: '删除',
+  })
+  if (!ok) return
+  error.value = ''
+  try {
+    await deleteUser(u.id)
+    await load()
+  } catch (e) {
+    error.value = e.message || '删除失败'
+  }
+}
+
 onMounted(load)
 </script>
 
@@ -86,17 +104,27 @@ onMounted(load)
                 注册于 {{ new Date(u.createdAt).toLocaleDateString() }} · {{ roleLabel(u.role) }}
               </span>
             </div>
-            <BaseButton
-              v-if="canSetRole(auth.user, u, u.role)"
-              type="text"
-              @click="openEdit(u)"
-            >
-              编辑
-            </BaseButton>
-            <span
-              v-else
-              class="au-item__locked"
-            >不可编辑</span>
+            <div class="au-item__ops">
+              <BaseButton
+                v-if="canSetRole(auth.user, u, u.role)"
+                type="text"
+                @click="openEdit(u)"
+              >
+                编辑
+              </BaseButton>
+              <BaseButton
+                v-if="canDeleteUser(auth.user, u)"
+                type="text"
+                class="au-item__delete"
+                @click="removeUser(u)"
+              >
+                删除
+              </BaseButton>
+              <span
+                v-if="!canSetRole(auth.user, u, u.role) && !canDeleteUser(auth.user, u)"
+                class="au-item__locked"
+              >不可编辑</span>
+            </div>
           </BaseCard>
         </div>
       </section>
@@ -244,6 +272,17 @@ onMounted(load)
 .au-item__locked {
   color: var(--muted);
   font-size: 13px;
+}
+.au-item__ops {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.au-item__delete {
+  color: #d9534f;
+}
+.au-item__delete:hover {
+  color: #c9302c;
 }
 
 /* 编辑弹窗 */
