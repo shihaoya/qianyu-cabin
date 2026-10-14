@@ -29,7 +29,7 @@ export default buildSlapConfig(assets, {
   },
   swipe: {
     minSpeed: 30,
-    maxSpeed: 20000,
+    maxSpeed: 5000,
   },
   hit: {
     shakeAmp: 7,

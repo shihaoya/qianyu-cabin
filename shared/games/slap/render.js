@@ -211,6 +211,10 @@ function drawCharacter(ctx, state, cfg, images) {
   let alpha = 1
   let scale = 1
 
+  // 朝向：挨打/飞出的瞬间用本记方向，平时保持上一次挨打时的朝向（尚未挨过打时默认朝右）
+  const faceDir = state.flyT > 0 || state.hitT > 0 ? state.hitDir : state.lastDir || 1
+  const flipX = faceDir > 0 ? -1 : 1
+
   if (state.flyT > 0) {
     // 被打飞：沿 dir 方向抛物线飞出并翻滚，尾段淡出
     const total = Math.max(0.001, cfg.hit.flyDurationMs / 1000)
@@ -220,7 +224,7 @@ function drawCharacter(ctx, state, cfg, images) {
     angle = state.hitDir * k * Math.PI * 1.15
     scale = 1 - k * 0.12
     alpha = 1 - clamp01((k - 0.75) / 0.25)
-    drawCharImage(ctx, img, cx, cy - lift, ch, angle, alpha, scale, cfg, face)
+    drawCharImage(ctx, img, cx, cy - lift, ch, angle, alpha, scale, cfg, face, flipX)
     return
   }
 
@@ -245,11 +249,11 @@ function drawCharacter(ctx, state, cfg, images) {
     angle += Math.sin(t * 0.7) * (state.combo >= 200 ? 0.02 : 0.01)
   }
 
-  drawCharImage(ctx, img, cx, cy, ch, angle, alpha, scale, cfg, face)
+  drawCharImage(ctx, img, cx, cy, ch, angle, alpha, scale, cfg, face, flipX)
 }
 
-// 以 pivotFrac 处为轴心旋转绘制；图片缺失时回退为代码绘制的占位小人
-function drawCharImage(ctx, img, cx, cy, ch, angle, alpha, scale, cfg, face) {
+// 以 pivotFrac 处为轴心旋转绘制；flipX 水平镜像（挨打方向改变朝向），图片缺失时回退为代码绘制的占位小人
+function drawCharImage(ctx, img, cx, cy, ch, angle, alpha, scale, cfg, face, flipX = 1) {
   const pivotY = cy - ch * cfg.character.pivotFrac
   let w = ch * 0.8
   if (img && img.complete && img.naturalWidth) {
@@ -259,8 +263,9 @@ function drawCharImage(ctx, img, cx, cy, ch, angle, alpha, scale, cfg, face) {
   ctx.save()
   ctx.globalAlpha = alpha
   ctx.translate(cx, pivotY)
-  ctx.rotate(angle)
-  ctx.scale(scale, scale)
+  // 水平镜像会把旋转方向反过来，故 angle 同步乘 flipX，保持甩头/翻滚的视觉方向不变
+  ctx.rotate(angle * flipX)
+  ctx.scale(flipX * scale, scale)
 
   const top = -ch * (1 - cfg.character.pivotFrac)
   if (img && img.complete && img.naturalWidth) {
