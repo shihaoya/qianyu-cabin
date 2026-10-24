@@ -375,6 +375,68 @@ defineProps({
         <path d="M52 40 l4 9 10 1 -7 7 1 10 -8 -5 -8 5 1 -10 -7 -7 10 -1Z" />
       </g>
     </template>
+    <template v-else-if="type === 'circle'">
+      <!-- 千羽画圈圈：圆环 + 涂色弧 + 奔跑的小人 -->
+      <circle
+        cx="100"
+        cy="100"
+        r="58"
+        stroke="var(--primary)"
+        stroke-width="14"
+        opacity="0.35"
+      />
+      <path
+        d="M 153.9 63.9 A 58 58 0 0 1 143.2 138.5"
+        stroke="var(--accent)"
+        stroke-width="14"
+        stroke-linecap="round"
+        fill="none"
+      />
+      <g transform="translate(140 146) rotate(38)">
+        <ellipse
+          cx="0"
+          cy="0"
+          rx="10"
+          ry="15"
+          fill="var(--primary)"
+        />
+        <circle
+          cx="0"
+          cy="-6"
+          r="7"
+          fill="#fff"
+          stroke="var(--primary)"
+          stroke-width="2.5"
+        />
+        <circle
+          cx="2"
+          cy="-6"
+          r="2.6"
+          fill="#2b2b2b"
+        />
+        <path
+          d="M-4 -18 q-4 -10 -2 -14 M4 -18 q4 -10 2 -14"
+          stroke="var(--accent)"
+          stroke-width="3"
+          fill="none"
+          stroke-linecap="round"
+        />
+      </g>
+      <circle
+        cx="52"
+        cy="62"
+        r="11"
+        fill="var(--accent)"
+        opacity="0.9"
+      />
+      <circle
+        cx="50"
+        cy="60"
+        r="3"
+        fill="#fff"
+        opacity="0.9"
+      />
+    </template>
     <!-- 后续新游戏/功能：在此追加 v-else-if="type === 'xxx'" 分支 -->
   </svg>
 </template>

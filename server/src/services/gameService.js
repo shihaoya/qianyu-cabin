@@ -21,6 +21,11 @@ function summarizeResult(r) {
     bugsKilled: r.bugsKilled,
     timeSurvived: r.timeSurvived,
     hpLeft: r.hpLeft,
+    paintPercent: r.paintPercent,
+    monsterCount: r.monsterCount,
+    monsterSpeed: r.monsterSpeed,
+    runSpeed: r.runSpeed,
+    won: r.won,
   }
 }
 

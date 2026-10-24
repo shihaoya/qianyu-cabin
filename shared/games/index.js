@@ -24,11 +24,22 @@ export const GAME_DEFS = [
       { label: '时长', value: detail?.timeSurvived != null ? `${detail.timeSurvived}s` : '-' },
     ],
   },
-  // 打是亲：纯娱乐小游戏，不产生成绩记录，故没有 scoreLabel / formatDetail（榜单展示用）
   {
     key: 'slap',
     name: '打是亲',
     icon: 'slap',
+  },
+  // 后加的游戏放最后：千羽画圈圈
+  {
+    key: 'circle',
+    name: '千羽画圈圈',
+    icon: 'circle',
+    scoreLabel: '涂色%',
+    formatDetail: (detail) => [
+      { label: '涂色', value: detail?.paintPercent != null ? `${detail.paintPercent}%` : '-' },
+      { label: '时长', value: detail?.timeSurvived != null ? `${detail.timeSurvived}s` : '-' },
+      { label: '怪物', value: detail?.monsterCount ?? '-' },
+    ],
   },
 ]
 

@@ -3,10 +3,12 @@
 // 纯娱乐、不产生成绩记录的小游戏（如 slap）无需在此登记，也不应调用成绩相关接口。
 import climb from './climb.js'
 import fly from './fly.js'
+import circle from './circle.js'
 
 const registry = {
   [climb.key]: climb,
   [fly.key]: fly,
+  [circle.key]: circle,
 }
 
 export function getEngine(key) {

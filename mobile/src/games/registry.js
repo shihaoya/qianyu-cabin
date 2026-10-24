@@ -2,8 +2,9 @@ import { buildGameRegistry } from '@cabin/games'
 import ClimbGame from '../views/games/ClimbGame.vue'
 import FlyGame from '../views/games/FlyGame.vue'
 import SlapGame from '../views/games/SlapGame.vue'
+import CircleGame from '../views/games/CircleGame.vue'
 
 // 游戏注册表（移动端）：元信息与 PC 共用 @cabin/games，仅注入移动端组件。
-const { GAMES, getGame } = buildGameRegistry({ climb: ClimbGame, fly: FlyGame, slap: SlapGame })
+const { GAMES, getGame } = buildGameRegistry({ climb: ClimbGame, fly: FlyGame, slap: SlapGame, circle: CircleGame })
 
 export { GAMES, getGame }

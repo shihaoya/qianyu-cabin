@@ -192,6 +192,56 @@ useGameLeaderboard(gameKey) // 拉榜单、暴露当前用户高亮
 
 两者共享 §6.4 的状态契约，逻辑尽可能一致，仅操作/UI 差异。
 
+### 6.6 资源预加载（必须）
+
+**每个游戏必须有资源加载环节，全部贴图加载完成后才能允许用户点击开始游戏。** 否则游玩时图片未加载完成，会导致贴图闪烁、角色隐形、或渲染空白。
+
+**实现标准（以 CircleGame.vue 为参考）**：
+
+1. 进入游戏页面时，立即收集该游戏用到的全部图片资源（角色、怪物、道具、背景等），用 `Promise.all` + `Image.onload` 并行加载。
+2. 显示加载进度条或百分比文本，让用户知道资源正在加载。
+3. 全部图片加载成功后，才允许点击「开始游戏」按钮（按钮在加载完成前保持 `disabled` 状态）。
+4. 如果某张图片加载失败（`onerror`），显示错误提示，并允许用户刷新重试。
+5. 资源加载逻辑写在每个游戏视图的 `onMounted` 中，加载完成后再渲染一次 Canvas，确保用户看到完整贴图。
+
+**示例代码结构**：
+```js
+const assetsReady = ref(false)
+const loadedCount = ref(0)
+const totalCount = ref(0)
+
+function loadImage(src) {
+  return new Promise((resolve, reject) => {
+    const im = new Image()
+    im.onload = () => { loadedCount.value++; resolve(im) }
+    im.onerror = () => reject(new Error(`加载失败: ${src}`))
+    im.src = src
+  })
+}
+
+onMounted(async () => {
+  const imageSources = [
+    { key: 'sprite', src: config.character.image },
+    ...config.monsters.types.map(t => ({ key: t.key, src: t.image })),
+  ]
+  totalCount.value = imageSources.length
+  try {
+    const loaded = await Promise.all(imageSources.map(s => loadImage(s.src)))
+    // 按 key 放回 images 对象
+    assetsReady.value = true
+  } catch {
+    loadError.value = true
+  }
+})
+```
+
+**模板中按钮状态**：
+```vue
+<BaseButton type="primary" :disabled="!assetsReady" @click="startGame">
+  {{ assetsReady ? '开始游戏' : '加载中…' }}
+</BaseButton>
+```
+
 ---
 
 ## 7. 暂停 / 续玩生命周期（D3/D4）
