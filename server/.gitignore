@@ -3,3 +3,7 @@ node_modules
 .env
 
 /generated/prisma
+
+# 上传的文件（本地存储，不入库；路径由 UPLOAD_DIR 决定，默认 file/）
+file/
+uploads/

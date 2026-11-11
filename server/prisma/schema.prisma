@@ -111,3 +111,18 @@ model BenefitReason {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
+
+// 上传文件：任何功能需要「挂附件」都建一条 UploadedFile，把 fileId 存在业务表字段上（id 关联，不用外键）
+// storageKey 为磁盘相对路径（基于上传根目录），迁移存储后端时只改 fileService，不动业务表
+model UploadedFile {
+  id           Int      @id @default(autoincrement())
+  originalName String   // 原始文件名（展示用）
+  mimeType     String   // 客户端申报的 Content-Type（展示用，不可信）
+  size         Int      // 字节数
+  ext          String   // 规范化小写扩展名（含点，如 ".png"），磁盘文件以此命名
+  storageKey   String   @unique // 磁盘相对路径，如 "2026/11/11/xxx.png"
+  category     String   @default("general") // 业务分类（如 "general"/"avatar"），便于按功能管理与清理
+  uploaderId   Int?     // 上传人（User.id）
+  createdAt    DateTime @default(now())
+  @@index([category])
+}

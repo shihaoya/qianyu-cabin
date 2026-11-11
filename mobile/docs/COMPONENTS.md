@@ -69,6 +69,14 @@ example: <Xxx />
 - events：close:void — 仅由右上角关闭按钮触发（点遮罩 / Esc 均不关闭）
 - 示例：<BaseModal title="编辑粉丝" @close="fanEditor = null"><BaseInput v-model="name" label="昵称" /><template #footer><BaseButton type="primary">保存</BaseButton></template></BaseModal>
 
+### BaseUpload
+- 路径：src/components/base/BaseUpload.vue
+- 用途：文件上传（选择/拖拽/进度/预览），上传后通过 v-model 绑定文件 id，业务方用 id 关联文件
+- 适用端：通用
+- props：modelValue:Number|Array=null — 文件 id（multiple 时为 id 数组）; multiple:Boolean=false — 是否多文件; category:String='general' — 业务分类（小写字母/数字/-/_）; accept:String='' — 限定类型（如 "image/*"），空则按服务端白名单; maxSize:Number=10485760 — 单文件大小上限（字节）; disabled:Boolean=false — 禁用
+- events：update:modelValue — 上传成功/移除后同步最新 id（单文件为 Number，多文件为数组）
+- 示例：<BaseUpload v-model="form.avatarFileId" category="avatar" accept="image/*" />
+
 ### CabinLogo
 - 路径：src/components/base/CabinLogo.vue
 - 用途：小屋 logo / 站点标识 SVG

@@ -116,9 +116,12 @@ server/
 | 1016 | 400 | 调整数量非法（非整数或为 0） | `POST /api/fans/:id/cards/adjust` |
 | 1017 | 400 | 常用理由已存在 | `POST /api/benefit-reasons`、`PATCH /api/benefit-reasons/:id` |
 | 1018 | 404 | 常用理由不存在 | `PATCH/DELETE /api/benefit-reasons/:id` |
+| 1019 | 404 | 用户不存在 | 用户管理相关接口 |
+| 1020 | 400 | 未选择要上传的文件 | `POST /api/files` |
+| 1021 | 404 | 文件不存在 | `GET /api/files/:id/raw`、`DELETE /api/files/:id` |
 | 5000 | 500 | 服务端未知错误 | 错误中间件 |
 
-> 新增业务错误码时，在此表登记并在对应接口文档/注释说明，保证 PC/移动端一致。下一个可用业务码：**1019**。
+> 新增业务错误码时，在此表登记并在对应接口文档/注释说明，保证 PC/移动端一致。下一个可用业务码：**1022**。
 
 ### 游戏存档接口：不校验、原样存
 
@@ -260,4 +263,43 @@ GET    /api/me/benefits                「我的福利」：按当前登录 user
 - **向下兼容**：字段带 `DEFAULT 'common'`（迁移 `add_benefit_reason_type` 会把旧表重建为该默认值），因此①历史数据自动成为公共理由；②接口不传 `type` 时按 `common` 处理；③`PATCH` 只改文本、不带 `type` 时保留原类型。
 - 文本仍全局唯一（与类型无关），重复抛 `1017`；类型非法抛 `1001`。
 - 前端拉取列表后自行按方向筛选（`common` + 当前方向），服务端不区分过滤，保持接口简单。
+
+## 15. 文件上传约定（UploadedFile / fileService）
+
+### 15.1 模型与存储
+
+- 模型 `UploadedFile`（`prisma/schema.prisma`）：`originalName`（原始文件名快照）、`mimeType`（客户端申报，仅展示）、`size`、`ext`（规范化小写扩展名）、`storageKey`（磁盘相对路径，`yyyy/MM/dd/uuid.ext`，唯一）、`category`（业务分类，默认 `general`）、`uploaderId`。
+- 文件落盘在 **`server/file/`**（由 `UPLOAD_DIR` 配置，默认 `file`，已在 `server/.gitignore` 忽略，不入库）。目录按日期分层，文件名一律 UUID，**绝不使用用户原始文件名做磁盘名**（防路径穿越与覆盖）。
+- **关联方式：id 关联，不用外键**。业务表加 `xxxFileId Int?` 字段存 `UploadedFile.id` 即可；与福利模块一致不使用 Prisma relation。
+- **扩展性红线**：所有「文件 ↔ 磁盘」的读写只许出现在 `services/fileService.js`。未来迁移 OSS/S3 时只改该文件（`saveUpload`/`resolveStoragePath` 一族），controller 与业务方无感。
+
+### 15.2 接口（`routes/files.js`，统一挂 `auth`）
+
+```
+POST   /api/files               上传（multipart，field 名 "file"，可多文件；可带 category）
+                                单文件返回文件对象，多文件返回数组
+GET    /api/files/extensions    扩展名白名单下发（前端上传组件据此预校验）
+GET    /api/files?ids=1,2,3     按 id 批量回显文件信息 { id, name, size, mimeType, category, url, createdAt }
+GET    /api/files/:id/raw       流式读取（鉴权后；支持 Range，音视频可拖动）
+DELETE /api/files/:id           删除（记录 + 磁盘；当前未对普通用户开放，按业务挂 requireCap）
+```
+
+- `serializeFile()` 返回的 `url` 是 `/api/files/:id/raw` 路径；**该接口需 Authorization 头**，浏览器 `<img>/<video>` 直接挂 src 带不了 token，前端展示统一用 `fetchFileObjectURL(id)` 换本地 ObjectURL（见 DEV-PC.md §12）。
+- 上传走 `multer` **内存接收**（不落临时目录）：校验通过才写磁盘，写库失败回删磁盘文件，不留孤儿。大小/数量超限由 multer limits 拦截，错误统一转中文 `1001`（`fileController.handleUploadError`）。
+- 扩展名白名单单一真源：`fileService.ALLOWED_EXTENSIONS`。新功能需要新类型时在此登记，前端 `accept` 同步放开；不在名单抛 `1001`。
+
+### 15.3 配置（env）
+
+| 变量 | 默认 | 含义 |
+|---|---|---|
+| `UPLOAD_DIR` | `file` | 上传根目录（相对 server/） |
+| `UPLOAD_MAX_FILE_SIZE` | `10485760` | 单文件大小上限（字节，10MB） |
+| `UPLOAD_MAX_FILES` | `10` | 单请求文件数上限 |
+
+### 15.4 新业务接入上传的步骤
+
+1. 业务表加 `xxxFileId Int?` 字段 + 迁移，存 `UploadedFile.id`。
+2. 前端用 `BaseUpload` 组件（`v-model="form.xxxFileId"`，`category` 传业务名，如 `avatar`），提交表单时把 id 随业务数据一起提交。
+3. 回显时按 `xxxFileId` 调 `GET /api/files?ids=` 或 `fetchFileObjectURL`。
+4. 业务对象删除时按需决定是否调 `DELETE /api/files/:id` 清理文件（不自动级联）。
 

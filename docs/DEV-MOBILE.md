@@ -49,3 +49,7 @@
 ## 环境变量分层（与 PC 端相同）
 
 与 `DEV-PC.md` 第 11 节完全一致，仅 `DEV_PORT` 默认 `5174`（PC 为 `5173`），其余变量（`API_TARGET`、`VITE_API_BASE`）与加载规则、打包用法均相同。详见 `DEV-PC.md` 第 11 节。
+
+## 文件上传（BaseUpload 组件）
+
+与 PC 端完全一致：使用 `components/base/BaseUpload.vue`（`v-model` 绑文件 id，单文件 `Number` / 多文件数组），API 在 `api/files.js`，展示已上传文件用 `fetchFileObjectURL(id)` 换本地 ObjectURL（读取接口需 token，不能直接挂 src）。详见 `DEV-PC.md` §12，后端约定见 `DEV-SERVER.md` §15。

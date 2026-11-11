@@ -162,3 +162,46 @@ Props 必须声明类型；跨组件通信优先 props / emits，跨页面状态
 - 需更多环境（如 staging）时，新建 `.env.staging` 并 `pnpm build --mode staging`。
 
 `.gitignore` 已按 Vite 标准忽略 `.env` / `.env.local` / `.env.*.local`，上述分层文件均入库。
+
+## 12. 文件上传（BaseUpload 组件）
+
+上传功能已封装为 `components/base/BaseUpload.vue`（两端各一份、外观一致），API 在 `api/files.js`。后端约定见 `DEV-SERVER.md` §15。
+
+### 基本用法
+
+```vue
+<script setup>
+import { ref } from 'vue'
+import BaseUpload from '../components/base/BaseUpload.vue'
+
+const avatarFileId = ref(null)          // v-model 绑的是「文件 id」，不是文件本身
+const galleryIds = ref([])              // 多文件时绑 id 数组
+</script>
+
+<template>
+  <!-- 单文件：头像 -->
+  <BaseUpload v-model="avatarFileId" category="avatar" accept="image/*" />
+  <!-- 多文件：相册 -->
+  <BaseUpload v-model="galleryIds" multiple category="gallery" accept="image/*" />
+</template>
+```
+
+- `v-model` 绑定 **文件 id**（单文件 `Number`，多文件 `Number[]`）；提交表单时把 id 随业务数据一起提交，业务表存 `xxxFileId` 即完成关联。
+- 编辑回显：外部把已有 id 赋给 v-model，组件自动调 `GET /api/files?ids=` 拉回文件名并生成预览。
+- props：`category`（业务分类，便于服务端管理）、`accept`、`maxSize`、`multiple`、`disabled`；上传中组件内置进度条与 loading，失败展示后端中文 `message`（符合 §8 错误约定）。
+
+### 展示已上传文件（重要）
+
+文件读取接口 `GET /api/files/:id/raw` 需 `Authorization` 头，**浏览器 `<img>/<video>` 直接挂 src 带不了 token**。展示已上传文件统一用：
+
+```js
+import { fetchFileObjectURL } from '../api/files.js'
+const url = await fetchFileObjectURL(id)   // 带 token 取 blob → 本地 ObjectURL
+// 组件卸载时 URL.revokeObjectURL(url)
+```
+
+`BaseUpload` 内部已按此方式处理预览；在页面其它位置展示图片/音视频时，也必须走 `fetchFileObjectURL`，不要拼 `fileRawUrl` 直接挂 DOM。
+
+### 上传新类型文件
+
+扩展名白名单单一真源在后端 `fileService.ALLOWED_EXTENSIONS`；需要新类型时先在后端登记，前端再放开对应 `accept`。
