@@ -26,6 +26,18 @@ const routes = [
     component: () => import('../views/AdminBenefits.vue'),
   },
   {
+    path: '/admin/raffle',
+    name: 'admin-raffle',
+    meta: { cap: CAP.MANAGE_RAFFLE },
+    component: () => import('../views/AdminRaffle.vue'),
+  },
+  {
+    path: '/raffle',
+    name: 'raffle',
+    meta: { cap: CAP.MANAGE_RAFFLE },
+    component: () => import('../views/Raffle.vue'),
+  },
+  {
     path: '/icon-studio',
     name: 'icon-studio',
     meta: { cap: CAP.OWNER_TOOLS },

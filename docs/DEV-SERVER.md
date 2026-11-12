@@ -119,9 +119,15 @@ server/
 | 1019 | 404 | 用户不存在 | 用户管理相关接口 |
 | 1020 | 400 | 未选择要上传的文件 | `POST /api/files` |
 | 1021 | 404 | 文件不存在 | `GET /api/files/:id/raw`、`DELETE /api/files/:id` |
+| 1022 | 404 | 礼品不存在 | `PATCH/DELETE /api/raffles/prizes/:id` |
+| 1023 | 400 | 礼品名称重复 | `POST /api/raffles/prizes`、`PATCH /api/raffles/prizes/:id` |
+| 1024 | 400 | 当前没有可抽取的礼品 | `POST /api/raffles/draw` |
+| 1025 | 400 | 抽奖次数非法（非 1~100 整数） | `POST /api/raffles/draw` |
+| 1026 | 400 | 批量增减的条目非法（空数组 / 非整数 delta / delta 为 0 / 重复 typeId） | `POST /api/fans/:id/cards/adjust-batch` |
+| 1027 | 400 | 系统自带礼品不能编辑或删除（请到「福利管理」里操作） | `PATCH/DELETE /api/raffles/prizes/:id`（`benefitTypeId != null` 时） |
 | 5000 | 500 | 服务端未知错误 | 错误中间件 |
 
-> 新增业务错误码时，在此表登记并在对应接口文档/注释说明，保证 PC/移动端一致。下一个可用业务码：**1022**。
+> 新增业务错误码时，在此表登记并在对应接口文档/注释说明，保证 PC/移动端一致。下一个可用业务码：**1028**。
 
 ### 游戏存档接口：不校验、原样存
 
@@ -233,6 +239,7 @@ PATCH  /api/fans/:id                   编辑
 DELETE /api/fans/:id                   删除（连带清空其持有的卡，流水保留）
 GET    /api/fans/:id/cards             该粉丝各类型卡数量（未持有也返回，amount=0）
 POST   /api/fans/:id/cards/adjust      增减卡 { typeId, delta, reason }
+POST   /api/fans/:id/cards/adjust-batch 批量增减 { reason, items:[{ typeId, delta }] }，整批一个事务 + 一个共用理由
 GET    /api/fans/:id/logs              增减记录倒序分页
 
 GET    /api/me/benefits                「我的福利」：按当前登录 userId 反查粉丝档案，返回卡状态 + 最近发放记录（**只需登录**，不要求管理员）
@@ -241,6 +248,7 @@ GET    /api/me/benefits                「我的福利」：按当前登录 user
 ### 14.3 业务红线
 
 - **增减必须留痕**：`adjustFanCard` 在同一事务内更新 `FanBenefit` 并写 `BenefitLog`，二者不可只做一个；`reason` 必填、`delta` 必须为不为 0 的整数。
+- **批量增减是一个事务**：`adjustFanCardsBatch` 抽出 `adjustFanCardTx({..., tx})` 核心（单条 `adjustFanCard` 只是包一层自己的 `$transaction`），批量时在**一个** `$transaction` 里顺序执行每一条；任何一条失败（如余额不足 1014）整批回滚。`items` 不允许重复 `typeId`（1026），`reason` 整批共用（必填、≤100 字）。
 - **余额不可为负**：扣减后小于 0 抛 `1014`，提示携带当前剩余数量。
 - **类型删除受保护**：`amount > 0` 的持有记录存在时拒绝删除（`1012`）；删除类型会顺带清理数量为 0 的残留 `FanBenefit`。
 - **系统内账号必须真实**：`userId` 传入时需能查到 `User`，否则 `1001`；传 `null`/空串表示解除关联。
@@ -302,4 +310,60 @@ DELETE /api/files/:id           删除（记录 + 磁盘；当前未对普通用
 2. 前端用 `BaseUpload` 组件（`v-model="form.xxxFileId"`，`category` 传业务名，如 `avatar`），提交表单时把 id 随业务数据一起提交。
 3. 回显时按 `xxxFileId` 调 `GET /api/files?ids=` 或 `fetchFileObjectURL`。
 4. 业务对象删除时按需决定是否调 `DELETE /api/files/:id` 清理文件（不自动级联）。
+
+## 16. 抽奖约定（RafflePrize / RaffleRecord）
+
+### 16.1 数据模型（server/prisma/schema.prisma）
+
+两个模型，与福利模块一致**不使用 Prisma relation**，跨表靠二次查询拼接：
+
+| 模型 | 作用 | 关键约束 |
+|---|---|---|
+| `RafflePrize` | 奖池礼品 | `name` 唯一；`imageFileId Int?` 关联 `UploadedFile.id`（category=`raffle-prize`，非必填）；`weight`（整数权重，0 = 移出奖池）；`stock`（-1 无限制，0 = 已抽完）；`enabled` 停用开关；`@@index([enabled, stock])` |
+| `RaffleRecord` | 抽奖流水，**只增不改不删** | 存 `prizeId`、`prizeName` 快照、`fanId`/`fanNickname` 快照（可空 = 未指定粉丝）、`operatorId/operatorName` 快照；`@@index([prizeId, createdAt])`、`@@index([fanId, createdAt])` |
+
+**Snapshot 冗余原则**：记录里的礼品名 / 粉丝名做快照——礼品删除、粉丝改名后历史记录依然可读（与 §14.1 的 BenefitLog 同理）。
+
+### 16.2 接口（`routes/raffles.js`）
+
+统一挂 `auth` + `requireRaffleAdmin`（= `requireCap('manageRaffle')`，管理员与开发管理员可用）：
+
+```
+GET    /api/raffles/prizes          礼品列表（含图片信息，返回实时 probability）
+POST   /api/raffles/prizes          新增 { name, imageFileId?, weight, stock }
+PATCH  /api/raffles/prizes/:id      改名/权重/库存/启停
+DELETE /api/raffles/prizes/:id      删除（已有抽奖记录仍保留，见快照原则）
+POST   /api/raffles/draw            抽奖 { count:1~100, fanId? }
+                                    返回 { records:[{ id, prizeId, prizeName, fanNickname, createdAt }] }
+GET    /api/raffles/records         抽奖记录（page/pageSize，可按 prizeId/fanId 过滤）
+```
+
+### 16.3 中奖率设计（权重而非百分数）
+
+- 存的是**整数权重**而非百分比。某礼品的中奖率 = 该礼品权重 ÷ 所有「可用」礼品权重之和，前端实时显示。
+- **可用奖池**（单一真源在 `services/raffleService.js` 的 `availableWhere`）：`enabled AND weight > 0 AND (stock = -1 OR stock > 0)`。**权重为 0、库存为 0、停用的礼品物理上不会被抽到**——不存在"归 0 还被抽中"的问题。
+- 新增/停用/抽完某个礼品时，其余礼品的中奖率自动重归一化，无需人工调整任何百分比。
+- `weight` 允许 0（用来"保留配置但暂时移出奖池"），但不允许负数；`stock` 允许 -1（无限制）与 0（已抽完，不可再中），但不允许小于 -1。
+
+### 16.4 抽奖事务（库存与记录必须同事务）
+
+- 每次抽奖（`draw`）在**一个** `prisma.$transaction` 内完成：按权重随机挑选（`pickOne`）→ 扣减库存（`stock = -1` 跳过）→ 插入 `RaffleRecord` 快照。
+- **连抽 N 次 = 一个事务循环 N 次**：任何一次失败（如事务中途库存变化）整批回滚，不留半成品。
+- 事务内每轮都基于 `availableWhere` 重新取池，所以一次连抽中某礼品抽完后，后续轮次不会再选中它。
+
+### 16.5 系统自带礼品（与福利类型联动）
+
+`RafflePrize.benefitTypeId Int? @unique` 关联 `BenefitType.id`：**非空 = 系统自带礼品**，由「福利类型」单向同步生成，不可在抽奖管理里编辑/删除（只能启停）。同步逻辑收拢在 `raffleService.js` 的 `syncFromBenefitType / syncBenefitTypeRename / syncBenefitTypeRemove(tx, ...)` 三个函数，由 `benefitTypeService` 在自己的 `$transaction` 里调用——**单向依赖（benefit → raffle），事务边界清晰**。
+
+| 福利类型操作 | 抽奖侧同步动作 | 默认状态 |
+|---|---|---|
+| 新增类型 | 创建对应系统自带礼品（同名） | `enabled=false`（需管理员手动开启） |
+| 改名 | 同步更新礼品名 | - |
+| 删除 | 删除对应礼品（历史抽奖记录靠快照保留） | - |
+
+**约束与规则：**
+
+- 系统自带礼品在抽奖管理里**只能启停**（`enabled`），名称/图片/权重/库存归福利类型管。后端 `updatePrize` 用 `onlyToggle`（仅传 `enabled` 一个字段）放行，`removePrize` 直接拒绝（错误码 **1027**）。
+- **抽到自动计入**：`draw` 时若奖品为系统自带（`benefitTypeId != null`）且指定了粉丝，在同一事务内调 `adjustFanCardTx` 给该粉丝对应类型的卡 **+1**，理由为「抽奖获得：xx」。复用 `fanService` 的事务核心，保证「抽奖记录 + 卡数量 + 流水」三者原子提交。
+- **历史数据回填**：新增 `benefitTypeId` 列后，迁移需同步把已有 `BenefitType` 补建为 `RafflePrize`（见迁移 SQL）。
 

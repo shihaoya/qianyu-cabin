@@ -111,7 +111,7 @@ example: <Xxx />
 
 ### GameIcon
 - 路径：src/components/base/GameIcon.vue
-- 用途：按 type 渲染手绘风图标（内联 SVG，暖色配色）：游戏 climb/fly/slap、留言板 message、用户管理 users、福利 gift，便于扩展
+- 用途：按 type 渲染手绘风图标（内联 SVG，暖色配色）：游戏 climb/fly/slap/circle、留言板 message、用户管理 users、福利 gift、抽奖 raffle，便于扩展
 - 适用端：PC
 - props：type(String, 必填), size(Number=56)
 - events：无

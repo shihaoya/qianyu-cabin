@@ -8,6 +8,7 @@ import benefitTypeRoutes from './routes/benefitTypes.js'
 import benefitReasonRoutes from './routes/benefitReasons.js'
 import fanRoutes from './routes/fans.js'
 import fileRoutes from './routes/files.js'
+import raffleRoutes from './routes/raffles.js'
 import meRoutes from './routes/me.js'
 import { errorHandler } from './middleware/error.js'
 import { requestLog } from './middleware/requestLog.js'
@@ -36,6 +37,7 @@ app.use('/api/benefit-types', benefitTypeRoutes)
 app.use('/api/benefit-reasons', benefitReasonRoutes)
 app.use('/api/fans', fanRoutes)
 app.use('/api/files', fileRoutes)
+app.use('/api/raffles', raffleRoutes)
 app.use('/api/me', meRoutes)
 app.use(errorHandler)
 

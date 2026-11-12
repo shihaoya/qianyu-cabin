@@ -154,6 +154,35 @@ function onLogout() {
       </section>
 
       <section
+        v-if="can(auth.user, CAP.MANAGE_RAFFLE)"
+        class="block qy-rise"
+        style="animation-delay:.17s"
+      >
+        <div class="block__head">
+          <h2 class="block__title">
+            抽奖区
+          </h2>
+          <p class="block__sub">
+            直播抽奖小工具
+          </p>
+        </div>
+        <div class="interact">
+          <EntryCard
+            icon="raffle"
+            title="抽奖"
+            desc="抽礼品，可连抽、可指定粉丝"
+            :to="{ name: 'raffle' }"
+          />
+          <EntryCard
+            icon="settings"
+            title="抽奖管理"
+            desc="维护礼品、权重与库存"
+            :to="{ name: 'admin-raffle' }"
+          />
+        </div>
+      </section>
+
+      <section
         class="block qy-rise"
         style="animation-delay:.18s"
       >

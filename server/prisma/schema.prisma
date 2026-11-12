@@ -126,3 +126,35 @@ model UploadedFile {
   createdAt    DateTime @default(now())
   @@index([category])
 }
+
+// 抽奖礼品：weight 为权重（非负整数），实际中奖率 = weight / Σ(可用礼品 weight)
+// stock：剩余数量，-1 表示无限制；stock = 0 或 weight = 0 的礼品不会被抽中
+// benefitTypeId：关联 BenefitType.id（系统自带礼品，从福利类型同步过来；手动新增为 null）
+// 与福利模块一致不使用 Prisma relation，跨表数据用二次查询手工拼接
+model RafflePrize {
+  id            Int      @id @default(autoincrement())
+  name          String   @unique
+  benefitTypeId Int?     @unique // 关联 BenefitType.id（系统自带，不可编辑/删除）
+  imageFileId   Int?     // 关联 UploadedFile.id（可选，图片展示用）
+  weight        Int      @default(1) // 中奖权重：0 表示不参与抽奖
+  stock         Int      @default(-1) // 剩余数量：-1 无限制，0 表示已抽完
+  enabled       Boolean  @default(true) // 停用的礼品不进入奖池
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  @@index([enabled, stock])
+  @@index([benefitTypeId])
+}
+
+// 抽奖记录：只增不改不删，存礼品名/粉丝名快照，礼品或粉丝被删后记录仍可读
+model RaffleRecord {
+  id           Int      @id @default(autoincrement())
+  prizeId      Int
+  prizeName    String   // 礼品名快照
+  fanId        Int?     // 中奖粉丝（Fan.id），未指定时为 null
+  fanNickname  String?  // 粉丝昵称快照
+  operatorId   Int?     // 操作人（User.id）
+  operatorName String?
+  createdAt    DateTime @default(now())
+  @@index([prizeId, createdAt])
+  @@index([fanId, createdAt])
+}

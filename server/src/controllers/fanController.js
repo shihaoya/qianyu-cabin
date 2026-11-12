@@ -5,6 +5,7 @@ import {
   removeFan,
   listFanCards,
   adjustFanCard,
+  adjustFanCardsBatch,
   listFanLogs,
 } from '../services/fanService.js'
 import { ERR } from '../utils/errors.js'
@@ -52,6 +53,15 @@ export async function adjustCard(req, res) {
   const { typeId, delta, reason } = req.body || {}
   const data = await adjustFanCard({ fanId, typeId, delta, reason, operator: req.user })
   return sendOk(res, data)
+}
+
+// 批量增减卡：一次对多种卡类型同时操作，共享同一条理由
+export async function adjustCardsBatch(req, res) {
+  const fanId = Number(req.params.id)
+  if (!Number.isInteger(fanId)) throw ERR.FAN_NOT_FOUND()
+  const { items, reason } = req.body || {}
+  const results = await adjustFanCardsBatch({ fanId, items, reason, operator: req.user })
+  return sendOk(res, { results })
 }
 
 export async function getFanLogs(req, res) {

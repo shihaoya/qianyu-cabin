@@ -205,3 +205,17 @@ const url = await fetchFileObjectURL(id)   // 带 token 取 blob → 本地 Obje
 ### 上传新类型文件
 
 扩展名白名单单一真源在后端 `fileService.ALLOWED_EXTENSIONS`；需要新类型时先在后端登记，前端再放开对应 `accept`。
+
+## 13. 抽奖页与抽奖管理（raffle / admin-raffle）
+
+两个页面，仅管理员与开发管理员可用（路由 `meta.cap = CAP.MANAGE_RAFFLE`，后端 `requireRaffleAdmin` 兜底）。后端约定见 `DEV-SERVER.md` §16。
+
+- **`views/AdminRaffle.vue`（抽奖管理）**：奖池礼品 CRUD——名称（唯一）、图片（非必填，走 `BaseUpload`，`category="raffle-prize"`）、中奖权重（整数）、剩余数量（-1 无限制）、启停。列表实时显示中奖率；「抽奖记录」弹窗分页查看全部流水。
+- **系统自带礼品**：列表中带「系统自带」徽标的礼品来自「福利管理-福利类型」，由后端自动生成。此类礼品**只能启停**，前端隐藏「编辑」「删除」按钮（`benefitTypeId != null` 判定），并更新提示文案说明。
+- **`views/Raffle.vue`（抽奖）**：设置连抽次数（1~100）、可勾选「跳过动画」快速连抽；「中奖粉丝」可选，粉丝来自**福利管理的粉丝档案**（`listFans`，不是 User）。抽奖后奖池与结果就地刷新。
+- **中奖率口径**（前端展示须与服务端一致）：中奖率 = 该礼品权重 ÷ 所有「可用」礼品权重之和；可用 = `enabled && weight > 0 && (stock === -1 || stock > 0)`。权重 0 / 库存 0 / 停用的礼品不会进池也不会被抽中，展示概率按 0 处理。
+- 顶部导航入口在 `components/base/AppHeader.vue`，按 `can(auth.user, CAP.MANAGE_RAFFLE)` 显隐。
+
+## 14. 福利管理批量增减（AdminBenefits）
+
+福利管理详情区工具栏的「批量增减」按钮：一个面板里同时对**多种卡类型**填增减量（留空 = 不调整），共用一条理由（必填）。前端预览每行的调整后数量，**扣减后为负的行阻止提交**；服务端把整批放进一个事务（任一失败整批回滚，见 `DEV-SERVER.md` §14.3）。

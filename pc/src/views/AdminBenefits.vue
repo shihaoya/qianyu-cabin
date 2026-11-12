@@ -10,6 +10,7 @@ import {
   updateFan,
   deleteFan,
   adjustFanCard,
+  adjustFanCardsBatch,
   getFanLogs,
   listReasons,
   createReason,
@@ -67,6 +68,88 @@ const adjustTarget = ref(null) // { fanId, nickname, typeId, typeName, amount, d
 const adjustDraft = ref({ amount: '1', reason: '' })
 const adjusting = ref(false)
 const adjustError = ref('')
+
+// ---------- 批量增减面板 ----------
+// batchTarget: { fanId, nickname }
+// batchRows: [{ typeId, typeName, amount, delta }]，delta 为带符号整数（正加负减）
+const batchTarget = ref(null)
+const batchRows = ref([])
+const batchReason = ref('')
+const batchAdjusting = ref(false)
+const batchError = ref('')
+
+// ---------- 批量增减 ----------
+// 公共理由 + 增加理由都能带入（批量只有正数 delta，语义同「增加」）
+const batchReasons = computed(() =>
+  reasons.value.filter((r) => (r.type || 'common') === 'common' || (r.type || 'common') === 'add'),
+)
+
+function openBatch(fan) {
+  batchError.value = ''
+  batchReason.value = ''
+  // 以当前粉丝已持有的卡为基础，未持有的类型也给一行（amount = 0）
+  batchRows.value = types.value.map((t) => ({
+    typeId: t.id,
+    typeName: t.name,
+    amount: amountOf(fan, t.id),
+    delta: '',
+  }))
+  batchTarget.value = { fanId: fan.id, nickname: fan.nickname }
+}
+
+function pickBatchReason(text) {
+  batchReason.value = batchReason.value === text ? '' : text
+}
+
+function batchDelta(row) {
+  const n = Number(row.delta)
+  return Number.isInteger(n) && n !== 0 ? n : 0
+}
+
+const batchActiveRows = computed(() => batchRows.value.filter((r) => batchDelta(r) !== 0))
+
+const batchPreview = computed(() => {
+  if (!batchTarget.value) return []
+  return batchActiveRows.value.map((r) => {
+    const after = r.amount + batchDelta(r)
+    return { typeName: r.typeName, delta: batchDelta(r), after, valid: after >= 0 }
+  })
+})
+
+async function submitBatch() {
+  const target = batchTarget.value
+  if (!target || batchAdjusting.value) return
+  const note = batchReason.value.trim()
+  if (!note) {
+    batchError.value = '请填写理由'
+    return
+  }
+  if (!batchActiveRows.value.length) {
+    batchError.value = '请至少填写一种卡的调整数量'
+    return
+  }
+  const invalid = batchActiveRows.value.find((r) => r.amount + batchDelta(r) < 0)
+  if (invalid) {
+    batchError.value = `「${invalid.typeName}」扣减后数量为负，请先修正`
+    return
+  }
+
+  batchAdjusting.value = true
+  batchError.value = ''
+  try {
+    await adjustFanCardsBatch(target.fanId, {
+      reason: note,
+      items: batchActiveRows.value.map((r) => ({ typeId: r.typeId, delta: batchDelta(r) })),
+    })
+    batchTarget.value = null
+    await loadFans()
+    await loadAllLogs(target.fanId)
+  } catch (e) {
+    batchError.value = e.message || '批量调整失败'
+  } finally {
+    batchAdjusting.value = false
+  }
+}
 
 // ---------- 记录面板（只看该用户这一张卡） ----------
 const logsTarget = ref(null) // { fanId, nickname, typeId, typeName }
@@ -543,6 +626,13 @@ function fmtTime(value) {
               @click="openReasons"
             >
               管理常用理由
+            </BaseButton>
+            <BaseButton
+              v-if="currentFan"
+              type="default"
+              @click="openBatch(currentFan)"
+            >
+              批量增减
             </BaseButton>
             <BaseButton
               type="primary"
@@ -1209,6 +1299,96 @@ function fmtTime(value) {
       </BaseModal>
     </transition>
 
+    <!-- 批量增减：一次对多种卡加减，共用一个理由 -->
+    <transition name="ab-fade">
+      <BaseModal
+        v-if="batchTarget"
+        :title="'批量增减 · ' + batchTarget.nickname"
+        width="560px"
+        @close="batchTarget = null"
+      >
+        <p
+          v-if="batchError"
+          class="ab-error"
+        >
+          {{ batchError }}
+        </p>
+        <div class="ab-batch">
+          <p class="ab-hint">
+            每种卡填要加（正数）或减（负数）的数量，留空或填 0 表示不动。保存前可核对下方的调整预览。
+          </p>
+          <div class="ab-batch__rows">
+            <div
+              v-for="row in batchRows"
+              :key="row.typeId"
+              class="ab-batch__row"
+            >
+              <span class="ab-batch__name">{{ row.typeName }}</span>
+              <span class="ab-batch__amount">现有 {{ row.amount }} 张</span>
+              <input
+                v-model="row.delta"
+                class="ab-input ab-input--narrow"
+                type="number"
+                step="1"
+                :placeholder="row.delta === '' ? '不动' : ''"
+              >
+            </div>
+          </div>
+          <div
+            v-if="batchPreview.length"
+            class="ab-batch__preview"
+          >
+            <span
+              v-for="(p, i) in batchPreview"
+              :key="i"
+              class="ab-batch__preview-item"
+              :class="{ 'is-invalid': !p.valid }"
+            >
+              {{ p.typeName }} {{ p.delta > 0 ? '+' : '' }}{{ p.delta }} → {{ p.after }}
+            </span>
+          </div>
+          <BaseInput
+            v-model="batchReason"
+            label="理由（必填，整批共用）"
+            type="text"
+            placeholder="如：直播活动统一发放"
+          />
+          <div
+            v-if="batchReasons.length"
+            class="ab-chips"
+          >
+            <button
+              v-for="r in batchReasons"
+              :key="r.id"
+              type="button"
+              class="ab-chip"
+              :class="{ 'is-active': batchReason === r.text }"
+              :title="REASON_TYPE_LABEL[r.type || 'common'] + '理由'"
+              @click="pickBatchReason(r.text)"
+            >
+              {{ r.text }}
+            </button>
+          </div>
+        </div>
+        <template #footer>
+          <BaseButton
+            type="text"
+            @click="batchTarget = null"
+          >
+            取消
+          </BaseButton>
+          <BaseButton
+            type="primary"
+            :loading="batchAdjusting"
+            :disabled="batchAdjusting || !batchActiveRows.length"
+            @click="submitBatch"
+          >
+            确认调整
+          </BaseButton>
+        </template>
+      </BaseModal>
+    </transition>
+
     <!-- 记录：只看该用户这一张卡 -->
     <transition name="ab-fade">
       <BaseModal
@@ -1739,6 +1919,62 @@ function fmtTime(value) {
 .ab-adjust__amount {
   color: var(--muted);
   font-size: 13px;
+}
+
+/* 批量增减面板 */
+.ab-batch {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.ab-batch .ab-hint {
+  margin: 0;
+}
+.ab-batch__rows {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 260px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+.ab-batch__row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.ab-batch__name {
+  flex: 1;
+  min-width: 0;
+  color: var(--text);
+  font-size: 14px;
+}
+.ab-batch__amount {
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+.ab-input--narrow {
+  width: 90px;
+  flex: none;
+  text-align: right;
+}
+.ab-batch__preview {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.ab-batch__preview-item {
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: rgba(201, 116, 59, 0.1);
+  color: var(--text);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.ab-batch__preview-item.is-invalid {
+  background: rgba(217, 83, 79, 0.12);
+  color: #d9534f;
 }
 .ab-chips {
   display: flex;

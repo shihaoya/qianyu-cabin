@@ -53,3 +53,11 @@
 ## 文件上传（BaseUpload 组件）
 
 与 PC 端完全一致：使用 `components/base/BaseUpload.vue`（`v-model` 绑文件 id，单文件 `Number` / 多文件数组），API 在 `api/files.js`，展示已上传文件用 `fetchFileObjectURL(id)` 换本地 ObjectURL（读取接口需 token，不能直接挂 src）。详见 `DEV-PC.md` §12，后端约定见 `DEV-SERVER.md` §15。
+
+## 抽奖页与抽奖管理（移动端入口）
+
+页面本身与 PC 端同构（`views/Raffle.vue` / `views/AdminRaffle.vue`，规则见 `DEV-PC.md` §13），差异只在**入口与容器**：
+
+- 移动端没有顶部导航，管理入口集中在 `Home.vue` 的区块里：具备 `CAP.MANAGE_RAFFLE` 时渲染「抽奖区」，内含「抽奖」「抽奖管理」两张 `EntryCard`（`icon="raffle"`，手绘分支见 `GameIcon.vue`；图标集 `icons.js` 是另一套，勿混）。
+- 移动端 `BaseModal` 默认底部弹层、**不传 `width`**；`BaseButton` 尺寸用 `size="md"|"lg"`（PC 端无 `size` prop）。
+- 福利管理的「批量增减」入口在粉丝详情头部第一个图标按钮（详见 `DEV-PC.md` §14，交互规则相同）。

@@ -9,7 +9,6 @@ import AppHeader from '../components/base/AppHeader.vue'
 import BaseButton from '../components/base/BaseButton.vue'
 import EntryCard from '../components/base/EntryCard.vue'
 import { GAMES } from '../games/registry.js'
-import { alert } from '../composables/useConfirm.js'
 
 const router = useRouter()
 const auth = useAuthStore()
@@ -142,6 +141,20 @@ async function onPlay(game) {
             title="福利管理"
             desc="维护福利类型与粉丝的卡"
             :to="{ name: 'admin-benefits' }"
+          />
+          <EntryCard
+            tile
+            icon="raffle"
+            title="抽奖"
+            desc="抽礼品，可连抽、可指定粉丝"
+            :to="{ name: 'raffle' }"
+          />
+          <EntryCard
+            tile
+            icon="raffle"
+            title="抽奖管理"
+            desc="维护奖池礼品、权重与库存"
+            :to="{ name: 'admin-raffle' }"
           />
         </div>
       </section>

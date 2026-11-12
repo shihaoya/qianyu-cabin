@@ -6,6 +6,7 @@ import {
   deleteFan,
   getFanCards,
   adjustCard,
+  adjustCardsBatch,
   getFanLogs,
 } from '../controllers/fanController.js'
 import { auth } from '../middleware/auth.js'
@@ -19,6 +20,7 @@ router.post('/', postFan)
 // 子资源写在 /:id 之前，避免被通配参数吃掉
 router.get('/:id/cards', getFanCards)
 router.post('/:id/cards/adjust', adjustCard)
+router.post('/:id/cards/adjust-batch', adjustCardsBatch)
 router.get('/:id/logs', getFanLogs)
 router.patch('/:id', patchFan)
 router.delete('/:id', deleteFan)

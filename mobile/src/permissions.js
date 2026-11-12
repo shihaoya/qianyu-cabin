@@ -23,6 +23,7 @@ export const CAP = {
   DELETE_USERS: 'deleteUsers', // 删除用户：开发管理员可删管理员与用户，管理员只能删用户
   OWNER_TOOLS: 'ownerTools', // 仅开发管理员可见的开发工具（如图标工作室）
   MANAGE_BENEFITS: 'manageBenefits', // 福利管理：福利类型与粉丝的卡
+  MANAGE_RAFFLE: 'manageRaffle', // 抽奖：礼品维护与抽奖执行（含跳过动画/连抽）
 }
 
 // 能力 → 所需最低角色
@@ -33,6 +34,8 @@ export const CAP_ROLE = {
   [CAP.OWNER_TOOLS]: ROLE.OWNER,
   // 与后端一致：管理员与开发管理员都能看到并维护卡
   [CAP.MANAGE_BENEFITS]: ROLE.ADMIN,
+  // 抽奖与福利管理同级：管理员与开发管理员均可使用
+  [CAP.MANAGE_RAFFLE]: ROLE.ADMIN,
 }
 
 export const rankOf = (role) => ROLE_RANK[role] ?? 0

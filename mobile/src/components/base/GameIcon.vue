@@ -3,7 +3,7 @@
 name: GameIcon
 path: src/components/base/GameIcon.vue
 category: base
-purpose: 按 type 渲染手绘风图标（内联 SVG，暖色配色）：游戏 climb/fly/slap、留言板 message、用户管理 users、福利 gift，便于扩展
+purpose: 按 type 渲染手绘风图标（内联 SVG，暖色配色）：游戏 climb/fly/slap/circle、留言板 message、用户管理 users、福利 gift、抽奖 raffle，便于扩展
 appliesTo: 移动
 props: type(String, 必填), size(Number=56)
 events: 无
@@ -435,6 +435,61 @@ defineProps({
         r="3"
         fill="#fff"
         opacity="0.9"
+      />
+    </template>
+    <template v-else-if="type === 'raffle'">
+      <!-- 抽奖：礼盒 + 盖 + 缎带 + 飘出的小星星 -->
+      <rect
+        x="50"
+        y="88"
+        width="100"
+        height="72"
+        rx="10"
+        fill="var(--accent)"
+        opacity="0.9"
+      />
+      <rect
+        x="44"
+        y="66"
+        width="112"
+        height="26"
+        rx="8"
+        fill="var(--primary)"
+      />
+      <rect
+        x="92"
+        y="66"
+        width="16"
+        height="94"
+        fill="var(--primary)"
+      />
+      <path
+        d="M100 66 C 84 40, 62 44, 68 58 C 72 68, 88 68, 100 66 Z"
+        fill="var(--primary)"
+        opacity="0.85"
+      />
+      <path
+        d="M100 66 C 116 40, 138 44, 132 58 C 128 68, 112 68, 100 66 Z"
+        fill="var(--primary)"
+        opacity="0.85"
+      />
+      <path
+        d="M100 24l4.2 9 9.8 1.4-7.1 6.9 1.7 9.7-8.6-4.6-8.6 4.6 1.7-9.7-7.1-6.9 9.8-1.4z"
+        fill="var(--accent)"
+      />
+      <circle
+        cx="52"
+        cy="42"
+        r="4"
+        fill="var(--accent)"
+        opacity="0.7"
+      />
+      <circle
+        cx="152"
+        cy="36"
+        r="3"
+        fill="var(--primary)"
+        opacity="0.6"
       />
     </template>
     <!-- 后续新游戏/功能：在此追加 v-else-if="type === 'xxx'" 分支 -->

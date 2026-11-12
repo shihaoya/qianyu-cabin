@@ -65,6 +65,12 @@ export function adjustFanCard(fanId, data) {
   return api.post(`/fans/${fanId}/cards/adjust`, data)
 }
 
+// 批量增减卡：一次对多种卡类型同时操作，共享同一条理由
+// items: [{ typeId, delta }]，delta 为带符号整数
+export function adjustFanCardsBatch(fanId, data) {
+  return api.post(`/fans/${fanId}/cards/adjust-batch`, data)
+}
+
 export function getFanLogs(fanId, { page = 1, pageSize = 20 } = {}) {
   return api.get(`/fans/${fanId}/logs`, { params: { page, pageSize } })
 }

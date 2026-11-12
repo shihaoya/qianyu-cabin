@@ -24,6 +24,7 @@ export const CAP = {
   SET_OWNER: 'setOwner', // 将他人设为开发管理员
   OWNER_TOOLS: 'ownerTools', // 仅开发管理员可见的开发工具（后端当前无对应路由）
   MANAGE_BENEFITS: 'manageBenefits', // 福利管理：福利类型与粉丝的卡
+  MANAGE_RAFFLE: 'manageRaffle', // 抽奖：礼品维护与抽奖执行（含跳过动画/连抽）
 }
 
 // 能力 → 所需最低角色（role 的 rank 大于等于该值即可）
@@ -34,6 +35,8 @@ export const CAP_ROLE = {
   [CAP.SET_OWNER]: ROLE.OWNER,
   // 福利管理与用户管理同级：管理员与开发管理员均可维护
   [CAP.MANAGE_BENEFITS]: ROLE.ADMIN,
+  // 抽奖与福利管理同级：管理员与开发管理员均可使用
+  [CAP.MANAGE_RAFFLE]: ROLE.ADMIN,
 }
 
 export const rankOf = (role) => ROLE_RANK[role] ?? 0

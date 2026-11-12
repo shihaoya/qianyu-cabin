@@ -160,8 +160,14 @@ export async function listFanCards(fanId) {
   return { fan, cards }
 }
 
-// 增减卡：delta 正数为增加、负数为减少；余额不足直接拒绝；每次调整落一条流水
+// 增减卡（单条）：入参校验 + 事务包装，供 controller 与批量入口复用
 export async function adjustFanCard({ fanId, typeId, delta, reason, operator }) {
+  return adjustFanCardTx({ fanId, typeId, delta, reason, operator, tx: prisma })
+}
+
+// 事务核心：所有写操作都走 tx，批量入口可在外层再包一层 $transaction 保证原子性
+// 事务核心：导出供抽奖服务等跨模块场景复用（如抽到系统自带礼品自动计入粉丝卡）
+export async function adjustFanCardTx({ fanId, typeId, delta, reason, operator, tx }) {
   const amount = Number(delta)
   if (!Number.isInteger(amount) || amount === 0) throw ERR.ADJUST_INVALID()
   const note = (reason || '').trim()
@@ -172,43 +178,70 @@ export async function adjustFanCard({ fanId, typeId, delta, reason, operator }) 
   if (!Number.isInteger(tid)) throw ERR.PARAM('福利类型不合法')
 
   const [fan, type] = await Promise.all([
-    prisma.fan.findUnique({ where: { id: fanId }, select: FAN_SELECT }),
-    prisma.benefitType.findUnique({ where: { id: tid } }),
+    tx.fan.findUnique({ where: { id: fanId }, select: FAN_SELECT }),
+    tx.benefitType.findUnique({ where: { id: tid } }),
   ])
   if (!fan) throw ERR.FAN_NOT_FOUND()
   if (!type) throw ERR.TYPE_NOT_FOUND()
 
+  const held = await tx.fanBenefit.findUnique({ where: { fanId_typeId: { fanId, typeId: tid } } })
+  const balance = (held?.amount || 0) + amount
+  if (balance < 0) {
+    throw ERR.BENEFIT_NOT_ENOUGH(
+      `「${type.name}」仅剩 ${held?.amount || 0} 张，不足以扣除 ${Math.abs(amount)} 张`,
+    )
+  }
+
+  const row = held
+    ? await tx.fanBenefit.update({ where: { id: held.id }, data: { amount: balance } })
+    : await tx.fanBenefit.create({ data: { fanId, typeId: tid, amount: balance } })
+
+  const log = await tx.benefitLog.create({
+    data: {
+      fanId,
+      typeId: tid,
+      fanNickname: fan.nickname,
+      typeName: type.name,
+      delta: amount,
+      balance,
+      reason: note,
+      operatorId: operator ? operator.id : null,
+      operatorName: operator ? operator.nickname : null,
+    },
+  })
+
+  return {
+    card: { typeId: row.typeId, typeName: type.name, amount: row.amount },
+    log,
+  }
+}
+
+// 批量增减卡：一次对多种卡类型同时操作，共享同一条理由，全部成功或全部回滚
+export async function adjustFanCardsBatch({ fanId, items, reason, operator }) {
+  const note = (reason || '').trim()
+  if (!note) throw ERR.REASON_REQUIRED()
+  if (note.length > 100) throw ERR.PARAM('理由不超过 100 字')
+  if (!Array.isArray(items) || !items.length) throw ERR.BATCH_ITEMS_INVALID()
+
+  const seen = new Set()
+  for (const item of items) {
+    const tid = Number(item?.typeId)
+    const delta = Number(item?.delta)
+    if (!Number.isInteger(tid) || !Number.isInteger(delta) || delta === 0) {
+      throw ERR.BATCH_ITEMS_INVALID()
+    }
+    if (seen.has(tid)) throw ERR.BATCH_ITEMS_INVALID('同一种卡不能重复出现在批量增减里')
+    seen.add(tid)
+  }
+
   return prisma.$transaction(async (tx) => {
-    const held = await tx.fanBenefit.findUnique({ where: { fanId_typeId: { fanId, typeId: tid } } })
-    const balance = (held?.amount || 0) + amount
-    if (balance < 0) {
-      throw ERR.BENEFIT_NOT_ENOUGH(
-        `「${type.name}」仅剩 ${held?.amount || 0} 张，不足以扣除 ${Math.abs(amount)} 张`,
+    const results = []
+    for (const item of items) {
+      results.push(
+        await adjustFanCardTx({ fanId, typeId: item.typeId, delta: item.delta, reason: note, operator, tx }),
       )
     }
-
-    const row = held
-      ? await tx.fanBenefit.update({ where: { id: held.id }, data: { amount: balance } })
-      : await tx.fanBenefit.create({ data: { fanId, typeId: tid, amount: balance } })
-
-    const log = await tx.benefitLog.create({
-      data: {
-        fanId,
-        typeId: tid,
-        fanNickname: fan.nickname,
-        typeName: type.name,
-        delta: amount,
-        balance,
-        reason: note,
-        operatorId: operator ? operator.id : null,
-        operatorName: operator ? operator.nickname : null,
-      },
-    })
-
-    return {
-      card: { typeId: row.typeId, typeName: type.name, amount: row.amount },
-      log,
-    }
+    return results
   })
 }
 

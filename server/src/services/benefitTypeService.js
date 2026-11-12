@@ -2,6 +2,11 @@
 // 与既有风格一致：model 之间无 Prisma relation，跨表统计用 groupBy / 二次查询手工拼接
 import { prisma } from '../db/index.js'
 import { ERR } from '../utils/errors.js'
+import {
+  syncFromBenefitType,
+  syncBenefitTypeRename,
+  syncBenefitTypeRemove,
+} from './raffleService.js'
 
 const TYPE_SELECT = {
   id: true,
@@ -35,9 +40,14 @@ export async function createType({ name, description }) {
   const existing = await prisma.benefitType.findUnique({ where: { name: typeName } })
   if (existing) throw ERR.TYPE_NAME_TAKEN()
 
-  return prisma.benefitType.create({
-    data: { name: typeName, description: desc },
-    select: TYPE_SELECT,
+  // 创建类型时同步在奖池里生成一条系统自带礼品（默认停用，由管理员手动开启）
+  return prisma.$transaction(async (tx) => {
+    const created = await tx.benefitType.create({
+      data: { name: typeName, description: desc },
+      select: TYPE_SELECT,
+    })
+    await syncFromBenefitType(tx, created)
+    return created
   })
 }
 
@@ -53,6 +63,11 @@ export async function updateType(id, { name, description }) {
     if (typeName !== current.name) {
       const duplicated = await prisma.benefitType.findUnique({ where: { name: typeName } })
       if (duplicated) throw ERR.TYPE_NAME_TAKEN()
+      // 改名会同步到奖池：提前检查同名礼品，避免落到数据库唯一约束报 500
+      const sameNamePrize = await prisma.rafflePrize.findUnique({ where: { name: typeName } })
+      if (sameNamePrize && sameNamePrize.benefitTypeId !== id) {
+        throw ERR.PRIZE_NAME_TAKEN('抽奖管理中已有同名礼品，请先改名或删除后再使用该名称')
+      }
     }
     data.name = typeName
   }
@@ -62,7 +77,13 @@ export async function updateType(id, { name, description }) {
     data.description = desc
   }
 
-  return prisma.benefitType.update({ where: { id }, data, select: TYPE_SELECT })
+  return prisma.$transaction(async (tx) => {
+    const updated = await tx.benefitType.update({ where: { id }, data, select: TYPE_SELECT })
+    if (data.name !== undefined && data.name !== current.name) {
+      await syncBenefitTypeRename(tx, id, data.name)
+    }
+    return updated
+  })
 }
 
 // 删除规则：只要还有粉丝持有该类型的卡（amount > 0）就拒绝删除；
@@ -77,6 +98,7 @@ export async function removeType(id) {
   return prisma.$transaction(async (tx) => {
     await tx.fanBenefit.deleteMany({ where: { typeId: id } })
     await tx.benefitType.delete({ where: { id } })
+    await syncBenefitTypeRemove(tx, id)
     return { id, deleted: true }
   })
 }

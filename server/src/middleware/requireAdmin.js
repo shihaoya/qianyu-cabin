@@ -13,3 +13,4 @@ export function requireCap(cap) {
 export const requireAdmin = requireCap(CAP.MANAGE_USERS)
 export const requireOwner = requireCap(CAP.SET_OWNER)
 export const requireBenefitsAdmin = requireCap(CAP.MANAGE_BENEFITS)
+export const requireRaffleAdmin = requireCap(CAP.MANAGE_RAFFLE)
