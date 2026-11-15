@@ -150,7 +150,7 @@ model RaffleRecord {
   id           Int      @id @default(autoincrement())
   prizeId      Int
   prizeName    String   // 礼品名快照
-  fanId        Int?     // 中奖粉丝（Fan.id），未指定时为 null
+  fanId        Int?     // 抽奖粉丝（Fan.id），未指定时为 null
   fanNickname  String?  // 粉丝昵称快照
   operatorId   Int?     // 操作人（User.id）
   operatorName String?

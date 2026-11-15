@@ -492,6 +492,54 @@ defineProps({
         opacity="0.6"
       />
     </template>
+    <template v-else-if="type === 'folder'">
+      <!-- 文件管理：文件夹 + 标签角 + 前面的小纸页 -->
+      <path
+        d="M40 64 L88 64 L104 78 L160 78 C166 78 170 82 170 88 L170 152 C170 158 166 162 160 162 L40 162 C34 162 30 158 30 152 L30 74 C30 68 34 64 40 64 Z"
+        fill="var(--accent)"
+        opacity="0.9"
+      />
+      <path
+        d="M30 96 L170 96 L170 152 C170 158 166 162 160 162 L40 162 C34 162 30 158 30 152 Z"
+        fill="var(--primary)"
+        opacity="0.85"
+      />
+      <rect
+        x="44"
+        y="110"
+        width="56"
+        height="8"
+        rx="4"
+        fill="#fff"
+        opacity="0.9"
+      />
+      <rect
+        x="44"
+        y="126"
+        width="76"
+        height="8"
+        rx="4"
+        fill="#fff"
+        opacity="0.6"
+      />
+      <rect
+        x="120"
+        y="52"
+        width="42"
+        height="30"
+        rx="6"
+        fill="var(--primary)"
+      />
+      <rect
+        x="128"
+        y="62"
+        width="26"
+        height="5"
+        rx="2.5"
+        fill="#fff"
+        opacity="0.9"
+      />
+    </template>
     <!-- 后续新游戏/功能：在此追加 v-else-if="type === 'xxx'" 分支 -->
   </svg>
 </template>

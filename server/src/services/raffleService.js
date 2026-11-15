@@ -122,14 +122,14 @@ export async function updatePrize(id, { name, imageFileId, weight, stock, enable
     }
   }
 
-  if (data.name && data.name !== current.name) {
+  // 系统自带礼品：名称归福利类型管（同步自 benefitType），其余字段可在这里改
+  if (isSystemPrize(current)) {
+    delete data.name
+    if (!Object.keys(data).length) throw ERR.PARAM('没有可更新的字段')
+  } else if (data.name && data.name !== current.name) {
     const dup = await prisma.rafflePrize.findUnique({ where: { name: data.name } })
     if (dup) throw ERR.PRIZE_NAME_TAKEN()
   }
-
-  // 系统自带礼品只能改启用状态；名称/图片/权重/库存都归福利类型管
-  const onlyToggle = Object.keys(data).length === 1 && data.enabled !== undefined
-  if (!onlyToggle) assertNotSystem(current)
 
   return prisma.rafflePrize.update({ where: { id: pid }, data, select: PRIZE_SELECT })
 }

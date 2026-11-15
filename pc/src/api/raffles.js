@@ -17,7 +17,7 @@ export function deletePrize(id) {
   return api.delete(`/raffles/prizes/${id}`)
 }
 
-// 抽奖：count 次连抽，可选 fanId 指定中奖粉丝（粉丝是福利管理里的档案，不是用户账号）
+// 抽奖：count 次连抽，可选 fanId 指定抽奖粉丝（粉丝是福利管理里的档案，不是用户账号）
 export function drawRaffle({ count = 1, fanId = null } = {}) {
   return api.post('/raffles/draw', { count, fanId })
 }

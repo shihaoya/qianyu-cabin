@@ -83,12 +83,20 @@ function onLogout() {
           福利管理
         </RouterLink>
         <RouterLink
+          v-if="can(auth.user, CAP.MANAGE_FILES)"
+          :to="{ name: 'admin-files' }"
+          class="app-header__link"
+          :class="{ 'is-active': isActive('admin-files') }"
+        >
+          文件
+        </RouterLink>
+        <RouterLink
           v-if="can(auth.user, CAP.MANAGE_RAFFLE)"
           :to="{ name: 'raffle' }"
           class="app-header__link"
           :class="{ 'is-active': isActive('raffle') || isActive('admin-raffle') }"
         >
-          抽奖
+          直播抽奖
         </RouterLink>
         <RouterLink
           v-if="can(auth.user, CAP.OWNER_TOOLS)"

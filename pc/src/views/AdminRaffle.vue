@@ -8,6 +8,7 @@ import {
   listRaffleRecords,
 } from '../api/raffles.js'
 import { fetchFileObjectURL } from '../api/files.js'
+import { PRIZE_FALLBACK_EMOJI } from '@cabin/raffle.js'
 import AppHeader from '../components/base/AppHeader.vue'
 import BaseButton from '../components/base/BaseButton.vue'
 import BaseInput from '../components/base/BaseInput.vue'
@@ -19,6 +20,18 @@ import { confirm } from '../composables/useConfirm.js'
 const prizes = ref([])
 const loading = ref(false)
 const error = ref('')
+// 展示尺寸档位：small / medium / large
+const POOL_SIZES = ['small', 'medium', 'large']
+const POOL_SIZE_LABELS = { small: '小', medium: '中', large: '大' }
+const poolSize = ref('small')
+// 奖池搜索关键字
+const prizeKeyword = ref('')
+
+const filteredPrizes = computed(() => {
+  const kw = prizeKeyword.value.trim().toLowerCase()
+  if (!kw) return prizes.value
+  return prizes.value.filter((p) => (p.name || '').toLowerCase().includes(kw))
+})
 
 // ---------- 新增 / 编辑礼品 ----------
 // editor: { id?, name, imageFileId, weight, stock }
@@ -44,15 +57,11 @@ const revoked = []
 
 async function ensureImageUrl(fileId) {
   if (!fileId || imageUrls.value.has(fileId)) return
-  try {
-    const url = await fetchFileObjectURL(fileId)
-    revoked.push(url)
-    const next = new Map(imageUrls.value)
-    next.set(fileId, url)
-    imageUrls.value = next
-  } catch {
-    // 图片拉取失败不阻塞列表
-  }
+  const url = await fetchFileObjectURL(fileId)
+  revoked.push(url)
+  const next = new Map(imageUrls.value)
+  next.set(fileId, url)
+  imageUrls.value = next
 }
 
 onBeforeUnmount(() => {
@@ -91,12 +100,12 @@ function probabilityText(p) {
 }
 
 function stockText(p) {
-  return p.stock === -1 ? '无限制' : String(p.stock)
+  return p.stock === -1 ? '∞' : String(p.stock)
 }
 
 function openCreate() {
   saveError.value = ''
-  editor.value = { name: '', imageFileId: null, weight: 1, stock: -1 }
+  editor.value = { name: '', imageFileId: null, weight: 1, stock: -1, isSystem: false }
 }
 
 function openEdit(prize) {
@@ -107,13 +116,16 @@ function openEdit(prize) {
     imageFileId: prize.imageFileId,
     weight: prize.weight,
     stock: prize.stock,
+    enabled: prize.enabled,
+    isSystem: prize.benefitTypeId != null,
   }
 }
 
 async function savePrize() {
   if (!editor.value || saving.value) return
   const e = editor.value
-  if (!e.name.trim()) {
+  // 系统自带礼品的名称由福利类型维护，不在此处校验/提交
+  if (!e.isSystem && !e.name.trim()) {
     saveError.value = '礼品名称不能为空'
     return
   }
@@ -130,7 +142,10 @@ async function savePrize() {
   saving.value = true
   saveError.value = ''
   try {
-    const payload = { name: e.name.trim(), imageFileId: e.imageFileId, weight, stock }
+    // 系统自带礼品：名称由福利类型维护，只提交其余字段
+    const payload = e.isSystem
+      ? { imageFileId: e.imageFileId, weight, stock }
+      : { name: e.name.trim(), imageFileId: e.imageFileId, weight, stock }
     if (e.id) await updatePrize(e.id, payload)
     else await createPrize(payload)
     editor.value = null
@@ -225,7 +240,7 @@ onMounted(loadPrizes)
         <div class="rp-toolbar">
           <p class="rp-tip">
             中奖率 = 该礼品权重 ÷ 所有「可用」礼品权重之和；权重为 0、库存为 0 或停用的礼品不会被抽中。<br>
-            「系统自带」礼品来自「福利管理-福利类型」，只能启停，抽到后自动给中奖粉丝计入对应类型的卡。
+            福利类型默认带入奖池，只能启停，抽到后自动给抽奖粉丝计入对应类型的卡。
           </p>
           <div class="rp-actions">
             <BaseButton
@@ -243,6 +258,29 @@ onMounted(loadPrizes)
           </div>
         </div>
 
+        <!-- 礼品格子（展示全部，可切换格子大小） -->
+        <div class="rp-pool-head">
+          <input
+            v-model="prizeKeyword"
+            class="rp-search"
+            placeholder="搜索礼品名称…"
+          >
+          <div
+            v-if="!loading && prizes.length"
+            class="rp-size-switch"
+          >
+            <button
+              v-for="size in POOL_SIZES"
+              :key="size"
+              type="button"
+              class="rp-size-switch__btn"
+              :class="{ 'is-active': poolSize === size }"
+              @click="poolSize = size"
+            >
+              {{ POOL_SIZE_LABELS[size] }}
+            </button>
+          </div>
+        </div>
         <p
           v-if="loading"
           class="rp-empty"
@@ -253,69 +291,74 @@ onMounted(loadPrizes)
           v-else-if="!prizes.length"
           class="rp-empty"
         >
-          还没有手动添加的礼品。系统自带礼品来自「福利管理-福利类型」，由系统自动生成，可在此启停。
+          还没有礼品，点上面「新增礼品」创建第一个吧。福利类型默认带入奖池，由系统自动生成，可在此启停。
         </p>
 
         <ul
           v-else
           class="rp-list"
+          :class="`is-${poolSize}`"
         >
           <li
-            v-for="prize in prizes"
+            v-for="prize in filteredPrizes"
             :key="prize.id"
             class="rp-item"
             :class="{ 'is-disabled': !prize.enabled }"
           >
+            <span
+              v-if="prize.enabled"
+              class="rp-item__chance"
+            >{{ probabilityText(prize) }}</span>
+            <span class="rp-item__stock">剩 {{ stockText(prize) }}</span>
             <div class="rp-item__image">
               <img
                 v-if="prize.imageFileId && imageUrls.get(prize.imageFileId)"
                 :src="imageUrls.get(prize.imageFileId)"
                 :alt="prize.name"
               >
-              <span v-else>🎁</span>
+              <span v-else>{{ PRIZE_FALLBACK_EMOJI }}</span>
             </div>
-            <div class="rp-item__info">
-              <p class="rp-item__name">
-                {{ prize.name }}
-                <span
-                  v-if="prize.benefitTypeId != null"
-                  class="rp-badge rp-badge--system"
-                >系统自带</span>
-                <span
-                  v-if="!prize.enabled"
-                  class="rp-badge rp-badge--off"
-                >已停用</span>
-                <span
-                  v-else-if="prize.stock === 0"
-                  class="rp-badge rp-badge--empty"
-                >已抽完</span>
-              </p>
-              <p class="rp-item__meta">
-                权重 {{ prize.weight }} · 中奖率 {{ probabilityText(prize) }} · 剩余 {{ stockText(prize) }}
-              </p>
-            </div>
+            <p class="rp-item__name">
+              {{ prize.name }}
+              <span
+                v-if="!prize.enabled"
+                class="rp-badge rp-badge--off"
+              >已停用</span>
+              <span
+                v-else-if="prize.stock === 0"
+                class="rp-badge rp-badge--empty"
+              >已抽完</span>
+            </p>
+            <p class="rp-item__meta">
+              权重 {{ prize.weight }}
+            </p>
             <div class="rp-item__ops">
-              <BaseButton
-                type="text"
+              <button
+                type="button"
+                class="rp-icon-btn"
+                :title="prize.enabled ? '停用' : '启用'"
                 @click="toggleEnabled(prize)"
               >
-                {{ prize.enabled ? '停用' : '启用' }}
-              </BaseButton>
-              <BaseButton
-                v-if="prize.benefitTypeId == null"
-                type="text"
+                {{ prize.enabled ? '⏸' : '▶' }}
+              </button>
+              <button
+                type="button"
+                class="rp-icon-btn"
+                title="编辑"
                 @click="openEdit(prize)"
               >
-                编辑
-              </BaseButton>
-              <BaseButton
+                ✏️
+              </button>
+              <button
                 v-if="prize.benefitTypeId == null"
-                type="text"
+                type="button"
+                class="rp-icon-btn"
+                title="删除"
                 :disabled="deleting"
                 @click="removePrize(prize)"
               >
-                删除
-              </BaseButton>
+                🗑️
+              </button>
             </div>
           </li>
         </ul>
@@ -337,7 +380,12 @@ onMounted(loadPrizes)
               v-model="editor.name"
               maxlength="30"
               placeholder="如：奶茶一杯"
+              :disabled="editor.isSystem"
             />
+            <span
+              v-if="editor.isSystem"
+              class="rp-hint"
+            >（系统自带，名称不可修改）</span>
           </label>
           <label class="rp-field">
             <span class="rp-label">图片（非必填）</span>
@@ -372,6 +420,12 @@ onMounted(loadPrizes)
             class="rp-hint"
           >
             当前实时中奖率：{{ probabilityText(prizes.find((p) => p.id === editor.id) || { ...editor, enabled: true }) }}
+          </p>
+          <p
+            v-if="editor.isSystem"
+            class="rp-hint"
+          >
+            系统自带礼品的名称由福利类型维护；改名请在「福利管理」里操作，此处可修改图片、权重、库存。
           </p>
           <p
             v-if="saveError"
@@ -515,35 +569,178 @@ onMounted(loadPrizes)
   color: var(--muted);
   font-size: 14px;
 }
+/* 尺寸切换：独占一行、右对齐，避免压住第一排格子 */
+.rp-pool-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: -4px 0 10px;
+  min-height: 30px;
+}
+.rp-search {
+  flex: 1;
+  min-width: 0;
+  max-width: 220px;
+  padding: 5px 12px;
+  border: 1px solid var(--primary-soft);
+  border-radius: 999px;
+  font-size: 13px;
+  color: var(--text);
+  background: var(--surface);
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+.rp-search:focus {
+  border-color: var(--primary);
+}
+.rp-pool-head .rp-size-switch {
+  margin-left: auto;
+  flex-shrink: 0;
+}
+.rp-size-switch {
+  display: inline-flex;
+  border: 1px solid var(--primary-soft);
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--surface);
+}
+.rp-size-switch__btn {
+  padding: 4px 14px;
+  border: none;
+  background: transparent;
+  font-size: 13px;
+  color: var(--muted);
+  cursor: pointer;
+}
+.rp-size-switch__btn + .rp-size-switch__btn {
+  border-left: 1px solid var(--primary-soft);
+}
+.rp-size-switch__btn.is-active {
+  background: var(--primary-soft);
+  color: var(--primary);
+  font-weight: 600;
+}
 .rp-list {
   margin: 0;
   padding: 0;
   list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 14px;
 }
+/* 格子尺寸档位：小 / 中 / 大，网格列数与卡片内距联动调整 */
+.rp-list.is-small {
+  grid-template-columns: repeat(auto-fill, minmax(128px, 1fr));
+  gap: 8px;
+}
+.rp-list.is-small .rp-item {
+  padding: 10px 8px 6px;
+  gap: 4px;
+}
+.rp-list.is-small .rp-item__image {
+  width: 40px;
+  height: 40px;
+  font-size: 20px;
+}
+.rp-list.is-small .rp-item__chance {
+  top: 8px;
+  left: -22px;
+  font-size: 9px;
+  padding: 1px 24px;
+}
+.rp-list.is-small .rp-item__stock {
+  top: 5px;
+  right: 5px;
+  font-size: 10px;
+  padding: 1px 6px;
+}
+.rp-list.is-small .rp-item__name {
+  font-size: 12px;
+}
+.rp-list.is-small .rp-item__meta {
+  font-size: 10px;
+}
+.rp-list.is-small .rp-icon-btn {
+  width: 26px;
+  height: 26px;
+  font-size: 12px;
+}
+.rp-list.is-large {
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 16px;
+}
+.rp-list.is-large .rp-item {
+  padding: 20px 16px 12px;
+  gap: 10px;
+}
+.rp-list.is-large .rp-item__image {
+  width: 80px;
+  height: 80px;
+  font-size: 38px;
+}
+.rp-list.is-large .rp-item__chance {
+  font-size: 11px;
+  padding: 2px 7px;
+}
+.rp-list.is-large .rp-item__name {
+  font-size: 16px;
+}
+.rp-list.is-large .rp-item__meta {
+  font-size: 13px;
+}
+.rp-list.is-large .rp-icon-btn {
+  width: 36px;
+  height: 36px;
+  font-size: 17px;
+}
+/* 纵向卡片：图上、名称独立行、meta 提示、icon 按钮底部一行（V5 圆角渐变） */
 .rp-item {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 14px;
-  padding: 14px 18px;
-  background: var(--surface);
+  gap: 7px;
+  padding: 16px 14px 10px;
+  background: linear-gradient(145deg, #fffdf8 0%, #fdf6e8 100%);
+  border: 1px solid rgba(201, 116, 59, 0.15);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
+  text-align: center;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  position: relative;
+  overflow: hidden;
+}
+.rp-item:hover {
+  transform: translateY(-3px) scale(1.01);
+  box-shadow: 0 12px 32px rgba(201, 116, 59, 0.18);
 }
 .rp-item.is-disabled {
-  opacity: 0.6;
+  opacity: 0.55;
+}
+/* 卡片左上角缎带式概率角标 */
+.rp-item__chance {
+  position: absolute;
+  top: 12px;
+  left: -30px;
+  transform: rotate(-45deg);
+  font-size: 10px;
+  padding: 2px 32px;
+  background: var(--primary);
+  color: #fff;
+  font-weight: 600;
+  line-height: 1.4;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  box-shadow: 0 2px 6px rgba(201, 116, 59, 0.3);
 }
 .rp-item__image {
-  width: 48px;
-  height: 48px;
+  width: 64px;
+  height: 64px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 24px;
-  border-radius: 8px;
-  background: var(--primary-soft);
+  font-size: 32px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--primary-soft), #f5e6c8);
   overflow: hidden;
   flex-shrink: 0;
 }
@@ -552,35 +749,46 @@ onMounted(loadPrizes)
   height: 100%;
   object-fit: cover;
 }
-.rp-item__info {
-  flex: 1;
-  min-width: 0;
-}
 .rp-item__name {
   margin: 0;
   font-size: 15px;
+  font-weight: 600;
   color: var(--text);
   display: flex;
   align-items: center;
-  gap: 8px;
+  justify-content: center;
+  gap: 6px;
+  flex-wrap: wrap;
 }
 .rp-item__meta {
-  margin: 4px 0 0;
-  font-size: 13px;
+  margin: 0;
+  font-size: 12px;
   color: var(--muted);
 }
+/* 卡片右上角剩余数量 tag */
+.rp-item__stock {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--primary-soft);
+  color: var(--primary);
+  font-weight: 500;
+  line-height: 1.4;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
 .rp-badge {
-  font-size: 12px;
+  font-size: 11px;
   padding: 1px 8px;
   border-radius: 999px;
+  font-weight: 500;
 }
 .rp-badge--off {
   background: rgba(0, 0, 0, 0.08);
   color: var(--muted);
-}
-.rp-badge--system {
-  background: var(--primary-soft);
-  color: var(--primary);
 }
 .rp-badge--empty {
   background: rgba(217, 83, 79, 0.12);
@@ -588,8 +796,32 @@ onMounted(loadPrizes)
 }
 .rp-item__ops {
   display: flex;
-  gap: 4px;
-  flex-shrink: 0;
+  justify-content: center;
+  gap: 2px;
+  border-top: 1px solid rgba(201, 116, 59, 0.12);
+  padding-top: 8px;
+  margin-top: 2px;
+  width: 100%;
+}
+.rp-icon-btn {
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+  font-size: 15px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s ease;
+}
+.rp-icon-btn:hover {
+  background: var(--primary-soft);
+}
+.rp-icon-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 .rp-form {
   display: flex;

@@ -100,9 +100,60 @@ export async function getFileById(id) {
   return file
 }
 
-// 删除：先查再删磁盘与记录；磁盘文件缺失不阻断记录删除（清理语义）
+// 引用登记处：fileId 字段名 → { label, model, idField }。
+// 新增「业务记录关联 UploadedFile」时在此登记一项，文件管理即可感知该引用
+// （列表展示被谁引用、删除时阻止）。这是「中央文件库」语义的核心：文件先建，
+// 业务模块只存 fileId 指向这里的文件。
+const FILE_REFERENCERS = [
+  { label: '抽奖礼品', model: 'rafflePrize', idField: 'imageFileId' },
+]
+
+// 汇总一批文件的被引用情况：Map<fileId, Array<{ label, ids }>>
+export async function collectFileRefs(fileIds) {
+  const result = new Map(fileIds.map((id) => [id, []]))
+  if (!fileIds.length) return result
+  for (const ref of FILE_REFERENCERS) {
+    const groups = await prisma[ref.model].groupBy({
+      by: [ref.idField],
+      where: { [ref.idField]: { in: fileIds } },
+      _count: { _all: true },
+    })
+    for (const g of groups) {
+      const id = g[ref.idField]
+      if (result.has(id)) result.get(id).push({ label: ref.label, count: g._count._all })
+    }
+  }
+  return result
+}
+
+// 分页列出文件（管理端）：按上传时间倒序，附带被引用信息
+export async function listFiles({ page = 1, pageSize = 50, category = '' } = {}) {
+  const p = Math.max(1, Number(page) || 1)
+  const ps = Math.min(200, Math.max(1, Number(pageSize) || 50))
+  const where = category ? { category } : {}
+  const [total, list] = await prisma.$transaction([
+    prisma.uploadedFile.count({ where }),
+    prisma.uploadedFile.findMany({ where, orderBy: { id: 'desc' }, skip: (p - 1) * ps, take: ps }),
+  ])
+  const refs = await collectFileRefs(list.map((f) => f.id))
+  return {
+    total,
+    page: p,
+    pageSize: ps,
+    list: list.map((f) => ({ ...serializeFile(f), refs: refs.get(f.id) ?? [] })),
+  }
+}
+
+// 删除：先查再删磁盘与记录；磁盘文件缺失不阻断记录删除（清理语义）。
+// 被业务记录引用的文件不可删——由 collectFileRefs 判定，引用关系以登记处为准。
 export async function removeFile(id) {
   const file = await getFileById(id)
+  const refs = await collectFileRefs([file.id])
+  const used = refs.get(file.id) ?? []
+  if (used.length) {
+    const detail = used.map((r) => `${r.label} × ${r.count}`).join('、')
+    throw ERR.FILE_IN_USE(`该文件正被引用（${detail}），请先解除引用再删除`)
+  }
   await unlink(resolveStoragePath(file.storageKey)).catch(() => {})
   await prisma.uploadedFile.delete({ where: { id: file.id } })
   return file

@@ -32,6 +32,12 @@ const routes = [
     component: () => import('../views/AdminRaffle.vue'),
   },
   {
+    path: '/admin/files',
+    name: 'admin-files',
+    meta: { cap: CAP.MANAGE_FILES },
+    component: () => import('../views/AdminFiles.vue'),
+  },
+  {
     path: '/raffle',
     name: 'raffle',
     meta: { cap: CAP.MANAGE_RAFFLE },
@@ -55,6 +61,11 @@ const routes = [
 const router = createRouter({
   history: createWebHistory(),
   routes,
+  // 浏览器刷新 / 重开时恢复上次的滚动位置（默认 vue-router 会跳到顶部）
+  scrollBehavior(to, from, savedPosition) {
+    if (savedPosition) return savedPosition
+    return { top: 0 }
+  },
 })
 
 router.beforeEach(async (to) => {

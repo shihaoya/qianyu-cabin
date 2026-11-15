@@ -1,11 +1,14 @@
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { listPrizes, drawRaffle } from '../api/raffles.js'
-import { listFans } from '../api/benefits.js'
+import { listBenefitTypes, listFans, adjustFanCardsBatch, listReasons } from '../api/benefits.js'
 import { fetchFileObjectURL } from '../api/files.js'
+import { PRIZE_FALLBACK_EMOJI, QUICK_DRAW_COUNTS, MAX_BATCH_COUNT } from '@cabin/raffle.js'
+import mascotUrl from '@cabin/assets/qycj.png'
 import AppHeader from '../components/base/AppHeader.vue'
 import BaseButton from '../components/base/BaseButton.vue'
 import BaseModal from '../components/base/BaseModal.vue'
+import BaseInput from '../components/base/BaseInput.vue'
 
 // ---------- 奖池 ----------
 const prizes = ref([])
@@ -16,33 +19,37 @@ const error = ref('')
 const availablePrizes = computed(() =>
   prizes.value.filter((p) => p.enabled && p.weight > 0 && (p.stock === -1 || p.stock > 0)),
 )
-const totalAvailableWeight = computed(() =>
-  availablePrizes.value.reduce((sum, p) => sum + p.weight, 0),
-)
 
 // ---------- 抽奖参数 ----------
-const count = ref(1)
-const skipAnimation = ref(false)
-const drawing = ref(false)
-const drawError = ref('')
-const results = ref([]) // 最近抽取的奖品记录，倒序展示
-
-// ---------- 指定粉丝 ----------
-const showFanPicker = ref(false)
-const fanKeyword = ref('')
-const fanOptions = ref([])
-const fanLoading = ref(false)
+const QUICK_COUNTS = QUICK_DRAW_COUNTS
+const drawMode = ref('1') // '1'|'5'|'10'|'20'|'50'|'batch'
+const customCount = ref(100)
 const selectedFan = ref(null) // { id, nickname }
+const drawing = ref(false) // 正在旋转闪烁中（可停止）
+const drawingRequest = ref(false) // 正在请求后端
+const drawError = ref('')
+const currentResults = ref([]) // 累积的抽奖结果列表
 
-// ---------- 动画 ----------
-// 滚动高亮：在可用奖池里快速轮播，最后停在抽中的礼品上
-const highlightId = ref(null)
-let timer = null
-function stopTimer() {
-  if (timer) {
-    clearInterval(timer)
-    timer = null
+// ---------- 中央闪烁礼物 ----------
+const flashing = ref(false)
+const flashPrize = ref(null) // 当前闪烁显示的奖品
+let flashTimer = null
+
+function startFlash() {
+  stopFlash()
+  flashing.value = true
+  flashTimer = setInterval(() => {
+    const random = availablePrizes.value[Math.floor(Math.random() * availablePrizes.value.length)]
+    flashPrize.value = random
+  }, 80)
+}
+
+function stopFlash() {
+  if (flashTimer) {
+    clearInterval(flashTimer)
+    flashTimer = null
   }
+  flashing.value = false
 }
 
 // ---------- 图片 ObjectURL 缓存 ----------
@@ -62,8 +69,50 @@ async function ensureImageUrl(fileId) {
   }
 }
 
+// ---------- 彩带庆祝 ----------
+const confettiPieces = ref([]) // [{ id, left, delay, duration, size, color, round }]
+const confettiSeed = ref(0)
+let confettiTimer = null
+
+const CONFETTI_COLORS = ['#e0a23b', '#c9743b', '#5b8c7b', '#e8c47f', '#f7d9a8', '#ffd700', '#ff6b6b']
+
+function randomIn(min, max) {
+  return min + Math.random() * (max - min)
+}
+
+function buildConfetti() {
+  const seed = confettiSeed.value
+  confettiPieces.value = Array.from({ length: 100 }, (_, i) => ({
+    id: `${seed}-${i}`,
+    left: randomIn(0, 100),
+    delay: randomIn(0, 0.5),
+    duration: randomIn(1.8, 3),
+    size: randomIn(6, 12),
+    round: (i + seed) % 3 === 0,
+    color: CONFETTI_COLORS[(i + seed) % CONFETTI_COLORS.length],
+  }))
+}
+
+function startConfetti() {
+  stopConfetti()
+  confettiSeed.value += 1
+  buildConfetti()
+  confettiTimer = setTimeout(() => {
+    confettiPieces.value = []
+  }, 3400)
+}
+
+function stopConfetti() {
+  if (confettiTimer) {
+    clearTimeout(confettiTimer)
+    confettiTimer = null
+  }
+  confettiPieces.value = []
+}
+
 onBeforeUnmount(() => {
-  stopTimer()
+  stopFlash()
+  stopConfetti()
   revoked.forEach((u) => URL.revokeObjectURL(u))
 })
 
@@ -84,20 +133,161 @@ async function loadPrizes() {
 }
 
 function probabilityText(p) {
-  if (!totalAvailableWeight.value) return '0%'
-  return `${((p.weight / totalAvailableWeight.value) * 100).toFixed(1)}%`
+  const total = availablePrizes.value.reduce((sum, pr) => sum + pr.weight, 0)
+  if (!total) return '0%'
+  return `${((p.weight / total) * 100).toFixed(1)}%`
 }
 
-function stockText(p) {
-  return p.stock === -1 ? '∞' : String(p.stock)
+// ---------- 抽奖 ----------
+async function startDraw() {
+  if (drawing.value || drawingRequest.value) return
+  if (!availablePrizes.value.length) {
+    drawError.value = '当前没有可抽取的礼品'
+    return
+  }
+  drawing.value = true
+  drawError.value = ''
+  startFlash()
+}
+
+async function stopDraw() {
+  if (!drawing.value || drawingRequest.value) return
+  stopFlash()
+  drawing.value = false
+  drawingRequest.value = true
+
+  let n
+  if (drawMode.value === 'batch') {
+    n = Number(customCount.value)
+    if (!Number.isInteger(n) || n < 1 || n > MAX_BATCH_COUNT) {
+      drawError.value = `自定义次数必须为 1~${MAX_BATCH_COUNT} 的整数`
+      drawingRequest.value = false
+      return
+    }
+  } else {
+    n = Number(drawMode.value)
+  }
+
+  try {
+    // 粉丝在发放弹窗里才选择，抽奖记录不绑定 fanId
+    const data = await drawRaffle({ count: n })
+    const records = data.records || []
+    const newResults = records.map((r) => {
+      const prize = prizes.value.find((p) => p.id === r.prizeId)
+      return { ...prize, recordId: r.id, fanNickname: r.fanNickname }
+    }).filter(Boolean)
+    currentResults.value = [...currentResults.value, ...newResults]
+    startConfetti()
+    await loadPrizes()
+  } catch (e) {
+    drawError.value = e.message || '抽奖失败'
+  } finally {
+    drawingRequest.value = false
+  }
+}
+
+// ---------- 发福利 ----------
+const benefitTypes = ref([])
+const reasons = ref([])
+const showGrantModal = ref(false)
+const grantRows = ref([]) // [{ typeId, typeName, amount, delta }]
+const grantReason = ref('')
+const grantAdjusting = ref(false)
+const grantError = ref('')
+
+const batchReasons = computed(() =>
+  reasons.value.filter((r) => (r.type || 'common') === 'common' || (r.type || 'common') === 'add'),
+)
+
+async function loadBenefitData() {
+  try {
+    const [typesData, reasonsData] = await Promise.all([listBenefitTypes(), listReasons()])
+    benefitTypes.value = typesData.list || []
+    reasons.value = reasonsData.list || []
+  } catch {
+    // 静默失败，打开弹窗时再加载
+  }
+}
+
+function openGrantModal() {
+  if (!currentResults.value.length) return
+  grantError.value = ''
+  grantReason.value = ''
+  // 只展示抽到的福利类型（benefitTypeId 不为空），按抽中个数降序
+  const typeCount = new Map()
+  for (const r of currentResults.value) {
+    if (r.benefitTypeId) {
+      typeCount.set(r.benefitTypeId, (typeCount.get(r.benefitTypeId) || 0) + 1)
+    }
+  }
+  grantRows.value = benefitTypes.value
+    .filter(t => typeCount.has(t.id))
+    .map(t => ({
+      typeId: t.id,
+      typeName: t.name,
+      count: typeCount.get(t.id),
+      delta: String(typeCount.get(t.id)),
+    }))
+  showGrantModal.value = true
+  // 预加载粉丝列表，避免弹窗内等待
+  if (!fanOptions.value.length) loadFans()
+}
+
+function pickGrantReason(text) {
+  grantReason.value = grantReason.value === text ? '' : text
+}
+
+const grantActiveRows = computed(() =>
+  grantRows.value.filter((r) => Number(r.delta) !== 0 && r.delta !== ''),
+)
+
+async function submitGrant() {
+  if (!selectedFan.value || grantAdjusting.value) return
+  const note = grantReason.value.trim()
+  if (!note) {
+    grantError.value = '请填写备注'
+    return
+  }
+  if (!grantActiveRows.value.length) {
+    grantError.value = '请至少填写一种福利的发放数量'
+    return
+  }
+
+  grantAdjusting.value = true
+  grantError.value = ''
+  try {
+    await adjustFanCardsBatch(selectedFan.value.id, {
+      reason: note,
+      items: grantActiveRows.value.map((r) => ({ typeId: r.typeId, delta: Number(r.delta) })),
+    })
+    showGrantModal.value = false
+  } catch (e) {
+    grantError.value = e.message || '发放失败'
+  } finally {
+    grantAdjusting.value = false
+  }
 }
 
 // ---------- 粉丝选择 ----------
-async function searchFans() {
+const showFanPicker = ref(false)
+const fanKeyword = ref('')
+const fanOptions = ref([])
+const fanLoading = ref(false)
+
+async function loadFans() {
   fanLoading.value = true
   try {
-    const data = await listFans({ page: 1, pageSize: 50, keyword: fanKeyword.value })
-    fanOptions.value = data.list || []
+    // 拉全部粉丝（分页拉完），供直接展示和搜索过滤
+    let page = 1
+    let collected = []
+    for (;;) {
+      const data = await listFans({ page, pageSize: 50 })
+      collected = collected.concat(data.list || [])
+      if (collected.length >= (data.total || 0)) break
+      if (!(data.list || []).length) break
+      page += 1
+    }
+    fanOptions.value = collected
   } catch {
     fanOptions.value = []
   } finally {
@@ -105,11 +295,20 @@ async function searchFans() {
   }
 }
 
+const filteredFans = computed(() => {
+  const kw = fanKeyword.value.trim().toLowerCase()
+  if (!kw) return fanOptions.value
+  return fanOptions.value.filter(f =>
+    (f.nickname || '').toLowerCase().includes(kw) ||
+    (f.douyinAccount || '').toLowerCase().includes(kw) ||
+    (f.systemAccount || '').toLowerCase().includes(kw),
+  )
+})
+
 function openFanPicker() {
   showFanPicker.value = true
   fanKeyword.value = ''
-  fanOptions.value = []
-  searchFans()
+  if (!fanOptions.value.length) loadFans()
 }
 
 function pickFan(fan) {
@@ -121,265 +320,370 @@ function clearFan() {
   selectedFan.value = null
 }
 
-// ---------- 抽奖 ----------
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms))
-}
-
-// 滚动动画：在可用奖池里轮播高亮，约 1.2s 后停在 targetId
-async function runAnimation(targetId) {
-  if (!availablePrizes.value.length) return
-  const pool = availablePrizes.value
-  const rounds = 18 + Math.floor(Math.random() * 6)
-  for (let i = 0; i < rounds; i += 1) {
-    highlightId.value = pool[i % pool.length].id
-    await sleep(50 + i * 8)
-  }
-  highlightId.value = targetId
-  await sleep(300)
-}
-
-async function doDraw() {
-  if (drawing.value) return
-  const n = Number(count.value)
-  if (!Number.isInteger(n) || n < 1 || n > 100) {
-    drawError.value = '抽奖次数必须为 1~100 的整数'
-    return
-  }
-  if (!availablePrizes.value.length) {
-    drawError.value = '当前没有可抽取的礼品，请先到「抽奖管理」里添加'
-    return
-  }
-
-  drawing.value = true
-  drawError.value = ''
-  stopTimer()
-  try {
-    const data = await drawRaffle({ count: n, fanId: selectedFan.value ? selectedFan.value.id : null })
-    const records = data.records || []
-
-    if (skipAnimation.value) {
-      // 跳过动画：直接展示全部结果
-      highlightId.value = records.length ? records[records.length - 1].prizeId : null
-    } else {
-      // 有动画：连抽时逐次滚动，每次停在对应结果上
-      for (const record of records) {
-        await runAnimation(record.prizeId)
-      }
-    }
-
-    // 新结果插到最前面，方便立即看到
-    results.value = [...records.reverse(), ...results.value].slice(0, 100)
-    await loadPrizes()
-  } catch (e) {
-    drawError.value = e.message || '抽奖失败'
-  } finally {
-    drawing.value = false
-    stopTimer()
-  }
-}
-
-function fmtTime(value) {
-  if (!value) return ''
-  const d = new Date(value)
-  const pad = (x) => String(x).padStart(2, '0')
-  return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
-}
-
-onMounted(loadPrizes)
+onMounted(async () => {
+  await loadPrizes()
+  await loadBenefitData()
+})
 </script>
 
 <template>
   <div class="page">
     <AppHeader />
     <main class="page__main">
-      <section class="qy-rise">
-        <h1 class="rf-title">
-          抽奖
-        </h1>
-        <p class="rf-sub">
-          当前奖池共 {{ availablePrizes.length }} 种礼品 · 仅管理员与开发管理员可用
-        </p>
-        <p
-          v-if="error"
-          class="rf-error"
-        >
-          {{ error }}
-        </p>
+      <!-- 串灯装饰 -->
+      <div class="lights">
+        <span
+          v-for="n in 12"
+          :key="n"
+          class="bulb"
+          :style="{ animationDelay: `${n * 0.2}s` }"
+        />
+      </div>
 
-        <!-- 抽奖设置 -->
-        <div class="rf-panel">
-          <div class="rf-row">
-            <label class="rf-field">
-              <span class="rf-label">连抽次数</span>
-              <input
-                v-model="count"
-                type="number"
-                min="1"
-                max="100"
-                step="1"
-                class="rf-input rf-input--narrow"
-              >
-            </label>
-            <label class="rf-check">
-              <input
-                v-model="skipAnimation"
-                type="checkbox"
-              >
-              <span>跳过动画（快速连抽）</span>
-            </label>
-          </div>
-          <div class="rf-row rf-row--fan">
-            <span class="rf-label">中奖粉丝</span>
-            <template v-if="selectedFan">
-              <span class="rf-fan">{{ selectedFan.nickname }}</span>
-              <BaseButton
-                type="text"
-                @click="clearFan"
-              >
-                清除
-              </BaseButton>
-            </template>
-            <BaseButton
-              v-else
-              type="default"
-              @click="openFanPicker"
-            >
-              选择粉丝（可选）
-            </BaseButton>
-          </div>
-          <div class="rf-actions">
-            <BaseButton
-              type="primary"
-              :disabled="drawing || !availablePrizes.length"
-              @click="doDraw"
-            >
-              {{ drawing ? '抽奖中…' : skipAnimation ? `立即抽 ${Number(count) || 1} 次` : '开始抽奖' }}
-            </BaseButton>
-          </div>
+      <section class="qy-rise">
+        <header class="hero">
+          <p class="hero__eyebrow">
+            ✦ 千羽的小屋 · 直播抽奖 ✦
+          </p>
+          <h1 class="hero__title">
+            小屋抽奖夜
+          </h1>
+          <p class="hero__sub">
+            当前奖池共 {{ availablePrizes.length }} 种礼品 · 仅管理员与开发管理员可用
+          </p>
           <p
-            v-if="drawError"
+            v-if="error"
             class="rf-error"
           >
-            {{ drawError }}
+            {{ error }}
           </p>
+        </header>
+
+        <!-- 中央抽奖区 -->
+        <div class="draw-stage">
+          <div class="draw-stage__glow" />
+          <div
+            class="gift-box"
+            :class="{ 'is-flashing': flashing, 'is-revealed': currentResults.length && !flashing }"
+          >
+            <div class="gift-box__inner">
+              <img
+                v-if="flashPrize?.imageFileId && imageUrls.get(flashPrize.imageFileId)"
+                :src="imageUrls.get(flashPrize.imageFileId)"
+                :alt="flashPrize.name"
+                class="gift-box__img"
+              >
+              <span
+                v-else
+                class="gift-box__emoji"
+              >{{ flashing ? PRIZE_FALLBACK_EMOJI : PRIZE_FALLBACK_EMOJI }}</span>
+              <span class="gift-box__name">{{ flashing ? flashPrize?.name || '???' : (currentResults[0]?.name || '???') }}</span>
+            </div>
+          </div>
         </div>
 
-        <!-- 奖池展示 -->
-        <p
-          v-if="loading"
-          class="rf-empty"
-        >
-          正在加载…
-        </p>
-        <p
-          v-else-if="!availablePrizes.length"
-          class="rf-empty"
-        >
-          奖池为空：请先到「抽奖管理」添加礼品，或把已停用的礼品重新启用。
-        </p>
-        <ul
-          v-else
-          class="rf-pool"
-        >
-          <li
-            v-for="prize in availablePrizes"
-            :key="prize.id"
-            class="rf-prize"
-            :class="{ 'is-highlight': highlightId === prize.id }"
-          >
-            <div class="rf-prize__image">
-              <img
-                v-if="prize.imageFileId && imageUrls.get(prize.imageFileId)"
-                :src="imageUrls.get(prize.imageFileId)"
-                :alt="prize.name"
-              >
-              <span v-else>🎁</span>
-            </div>
-            <p class="rf-prize__name">
-              {{ prize.name }}
-            </p>
-            <p class="rf-prize__meta">
-              {{ probabilityText(prize) }} · 剩 {{ stockText(prize) }}
-            </p>
-          </li>
-        </ul>
-
-        <!-- 抽奖结果 -->
-        <div
-          v-if="results.length"
-          class="rf-results"
-        >
-          <h2 class="rf-results__title">
-            抽奖结果
-          </h2>
-          <ul class="rf-results__list">
-            <li
-              v-for="(record, i) in results"
-              :key="record.id"
-              class="rf-result"
+        <!-- 操作区 -->
+        <div class="controls">
+          <!-- 快捷抽数选择 + 批量输入 -->
+          <div class="count-quick">
+            <button
+              v-for="n in QUICK_COUNTS"
+              :key="n"
+              type="button"
+              class="count-chip"
+              :class="{ 'is-active': drawMode === String(n) }"
+              :disabled="drawing || drawingRequest"
+              @click="drawMode = String(n)"
             >
-              <span class="rf-result__idx">{{ results.length - i }}</span>
-              <span class="rf-result__prize">{{ record.prizeName }}</span>
-              <span class="rf-result__fan">{{ record.fanNickname || '未指定粉丝' }}</span>
-              <span class="rf-result__time">{{ fmtTime(record.createdAt) }}</span>
-            </li>
-          </ul>
+              {{ n }}抽
+            </button>
+            <button
+              type="button"
+              class="count-chip"
+              :class="{ 'is-active': drawMode === 'batch' }"
+              :disabled="drawing || drawingRequest"
+              @click="drawMode = 'batch'"
+            >
+              批量
+            </button>
+            <input
+              v-if="drawMode === 'batch'"
+              v-model="customCount"
+              type="number"
+              class="count-custom"
+              min="1"
+              :max="MAX_BATCH_COUNT"
+              :disabled="drawing || drawingRequest"
+            >
+            <span
+              v-if="drawMode === 'batch'"
+              class="count-unit"
+            >次</span>
+          </div>
+
+          <div class="btn-group">
+            <BaseButton
+              type="primary"
+              :disabled="drawing || drawingRequest || !availablePrizes.length"
+              @click="startDraw"
+            >
+              {{ drawing ? '闪烁中...' : '开始' }}
+            </BaseButton>
+            <BaseButton
+              type="default"
+              :disabled="!drawing || drawingRequest"
+              @click="stopDraw"
+            >
+              停止
+            </BaseButton>
+          </div>
+        </div>
+
+        <p
+          v-if="drawError"
+          class="rf-error"
+        >
+          {{ drawError }}
+        </p>
+
+        <!-- 抽奖结果（带角色趴趴效果） -->
+        <div
+          v-if="currentResults.length"
+          class="result-panel"
+        >
+          <!-- 角色趴在卡片上 -->
+          <div class="result-panel__mascot">
+            <img
+              :src="mascotUrl"
+              alt="千羽"
+            >
+          </div>
+          <div class="result-panel__card">
+            <div class="result-panel__header">
+              <h3>🎉 抽奖结果</h3>
+              <span class="result-panel__count">共 {{ currentResults.length }} 个</span>
+              <BaseButton
+                type="primary"
+                size="sm"
+                @click="openGrantModal"
+              >
+                发放给粉丝
+              </BaseButton>
+            </div>
+            <div class="result-scroll">
+              <div class="result-grid">
+                <div
+                  v-for="(r, i) in currentResults"
+                  :key="r.recordId || i"
+                  class="result-cell"
+                  :style="{ animationDelay: `${i * 0.05}s` }"
+                >
+                  <img
+                    v-if="r.imageFileId && imageUrls.get(r.imageFileId)"
+                    :src="imageUrls.get(r.imageFileId)"
+                    :alt="r.name"
+                    class="result-cell__img"
+                  >
+                  <span
+                    v-else
+                    class="result-cell__emoji"
+                  >{{ PRIZE_FALLBACK_EMOJI }}</span>
+                  <span class="result-cell__name">{{ r.name }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 
-      <!-- 粉丝选择弹窗 -->
-      <BaseModal
-        v-if="showFanPicker"
-        title="选择中奖粉丝"
-        @close="showFanPicker = false"
-      >
-        <div class="rf-picker">
-          <div class="rf-picker__search">
-            <input
-              v-model="fanKeyword"
-              class="rf-input"
-              placeholder="搜索昵称 / 抖音号 / 系统内账号"
-              @keyup.enter="searchFans"
+        <!-- 粉丝选择弹窗（嵌套在发放弹窗里） -->
+        <BaseModal
+          v-if="showFanPicker"
+          title="选择粉丝"
+          width="480px"
+          :z-index="1100"
+          @close="showFanPicker = false"
+        >
+          <div class="fan-picker">
+            <div class="fan-picker__search">
+              <input
+                v-model="fanKeyword"
+                placeholder="搜索昵称 / 抖音号 / 系统内账号"
+                @keyup.enter="loadFans"
+              >
+              <BaseButton
+                type="default"
+                @click="loadFans"
+              >
+                刷新
+              </BaseButton>
+            </div>
+            <p
+              v-if="fanLoading"
+              class="fan-picker__empty"
             >
-            <BaseButton
-              type="default"
-              @click="searchFans"
+              正在加载...
+            </p>
+            <p
+              v-else-if="!filteredFans.length"
+              class="fan-picker__empty"
             >
-              搜索
-            </BaseButton>
-          </div>
-          <p
-            v-if="fanLoading"
-            class="rf-empty"
-          >
-            正在加载…
-          </p>
-          <p
-            v-else-if="!fanOptions.length"
-            class="rf-empty"
-          >
-            没有找到粉丝，去「福利管理」新增一位吧。
-          </p>
-          <ul
-            v-else
-            class="rf-picker__list"
-          >
-            <li
-              v-for="fan in fanOptions"
-              :key="fan.id"
+              {{ fanKeyword ? '没有匹配的粉丝' : '还没有粉丝' }}
+            </p>
+            <div
+              v-else
+              class="fan-chips"
             >
               <button
+                v-for="fan in filteredFans"
+                :key="fan.id"
                 type="button"
-                class="rf-picker__item"
+                class="fan-chip"
+                :class="{ 'is-active': selectedFan?.id === fan.id }"
                 @click="pickFan(fan)"
               >
                 {{ fan.nickname }}
               </button>
-            </li>
-          </ul>
-        </div>
-      </BaseModal>
+            </div>
+          </div>
+        </BaseModal>
+
+        <!-- 发福利弹窗 -->
+        <BaseModal
+          v-if="showGrantModal"
+          title="发放给粉丝"
+          width="560px"
+          @close="showGrantModal = false"
+        >
+          <p
+            v-if="grantError"
+            class="rf-error"
+          >
+            {{ grantError }}
+          </p>
+
+          <!-- 粉丝选择 -->
+          <div class="fan-select">
+            <span class="fan-select__label">发放给</span>
+            <template v-if="selectedFan">
+              <span class="fan-select__name">{{ selectedFan.nickname }}</span>
+            </template>
+            <button
+              v-else
+              type="button"
+              class="fan-select__pick"
+              @click="openFanPicker"
+            >
+              选择粉丝
+            </button>
+            <button
+              v-if="selectedFan"
+              type="button"
+              class="fan-select__clear"
+              @click="clearFan"
+            >
+              清除
+            </button>
+          </div>
+
+          <template v-if="selectedFan">
+            <!-- 抽到的福利类型迷你卡片（双列） -->
+            <div class="grant__cards">
+              <div
+                v-for="row in grantRows"
+                :key="row.typeId"
+                class="grant-card"
+              >
+                <div class="grant-card__icon">🎁</div>
+                <div class="grant-card__info">
+                  <div class="grant-card__name">{{ row.typeName }}</div>
+                  <div class="grant-card__count">×{{ row.count }}</div>
+                </div>
+                <input
+                  v-model="row.delta"
+                  type="number"
+                  class="grant-card__input"
+                  min="0"
+                >
+              </div>
+            </div>
+
+            <p
+              v-if="!grantRows.length"
+              class="grant__empty"
+            >
+              本次抽中的奖品没有关联福利类型
+            </p>
+
+            <BaseInput
+              v-model="grantReason"
+              label="备注（必填）"
+              type="text"
+              placeholder="如：直播抽奖中奖"
+            />
+
+            <div
+              v-if="batchReasons.length"
+              class="grant__chips"
+            >
+              <button
+                v-for="r in batchReasons"
+                :key="r.id"
+                type="button"
+                class="grant__chip"
+                :class="{ 'is-active': grantReason === r.text }"
+                @click="pickGrantReason(r.text)"
+              >
+                {{ r.text }}
+              </button>
+            </div>
+          </template>
+
+          <template v-else>
+            <p class="fan-picker__hint">
+              请先选择要发放的粉丝
+            </p>
+          </template>
+
+          <template #footer>
+            <BaseButton
+              type="text"
+              @click="showGrantModal = false"
+            >
+              取消
+            </BaseButton>
+            <BaseButton
+              v-if="selectedFan"
+              type="primary"
+              :loading="grantAdjusting"
+              :disabled="grantAdjusting || !grantActiveRows.length"
+              @click="submitGrant"
+            >
+              确认发放
+            </BaseButton>
+          </template>
+        </BaseModal>
+
+      <!-- 彩带庆祝层 -->
+      <div
+        class="confetti"
+        aria-hidden="true"
+      >
+        <span
+          v-for="p in confettiPieces"
+          :key="p.id"
+          class="confetti-piece"
+          :class="{ 'is-round': p.round }"
+          :style="{
+            left: `${p.left}%`,
+            width: `${p.size}px`,
+            height: `${p.round ? p.size : p.size * 0.55}px`,
+            background: p.color,
+            animationDelay: `${p.delay}s`,
+            animationDuration: `${p.duration}s`,
+          }"
+        />
+      </div>
     </main>
   </div>
 </template>
@@ -391,218 +695,752 @@ onMounted(loadPrizes)
   display: flex;
   flex-direction: column;
 }
+
 .page__main {
   flex: 1;
   width: 100%;
-  max-width: 900px;
+  max-width: 600px;
   margin: 0 auto;
-  padding: 28px 20px 48px;
+  padding: 24px 20px 48px;
   box-sizing: border-box;
 }
-.rf-title {
-  margin: 0 0 6px;
+
+/* 串灯 */
+.lights {
+  display: flex;
+  justify-content: space-between;
+  padding: 0 10px;
+  margin-bottom: 20px;
+}
+
+.bulb {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #e8c47f;
+  box-shadow: 0 0 8px rgba(232, 196, 127, .8);
+  animation: blink 2.5s ease-in-out infinite;
+}
+
+@keyframes blink {
+  0%, 100% { opacity: .4; }
+  50% { opacity: 1; }
+}
+
+/* 头部 */
+.hero {
+  text-align: center;
+  margin-bottom: 30px;
+}
+
+.hero__eyebrow {
+  font-size: 11px;
+  letter-spacing: 3px;
+  color: var(--primary);
+  margin-bottom: 8px;
+}
+
+.hero__title {
   font-family: var(--font-display);
-  font-size: 30px;
+  font-size: 32px;
   color: var(--text);
+  margin-bottom: 6px;
 }
-.rf-sub {
-  margin: 0 0 16px;
+
+.hero__sub {
+  font-size: 13px;
   color: var(--muted);
-  font-size: 14px;
 }
+
 .rf-error {
-  margin: 0 0 10px;
+  margin-top: 12px;
   color: #d9534f;
   font-size: 14px;
 }
-.rf-panel {
-  padding: 32px 36px;
-  background: var(--surface);
-  border-radius: calc(var(--radius) + 6px);
-  box-shadow: var(--shadow);
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  margin-bottom: 24px;
-}
-.rf-row {
+
+/* 中央抽奖区 */
+.draw-stage {
+  position: relative;
+  height: 200px;
   display: flex;
   align-items: center;
+  justify-content: center;
+  margin-bottom: 24px;
+}
+
+.draw-stage__glow {
+  position: absolute;
+  inset: -20%;
+  background: radial-gradient(ellipse at 50% 50%, rgba(224, 162, 59, .12), transparent 60%);
+  pointer-events: none;
+}
+
+.gift-box {
+  width: 140px;
+  height: 140px;
+  background: linear-gradient(135deg, var(--primary-soft), #e8c47f);
+  border: 3px solid var(--primary);
+  border-radius: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  z-index: 2;
+  transition: all .15s;
+}
+
+.gift-box.is-flashing {
+  animation: flash .3s ease-in-out infinite;
+}
+
+@keyframes flash {
+  0%, 100% {
+    background: linear-gradient(135deg, var(--primary-soft), #e8c47f);
+    box-shadow: 0 4px 20px rgba(201, 116, 59, .2);
+  }
+  50% {
+    background: linear-gradient(135deg, #e8c47f, var(--primary));
+    box-shadow: 0 8px 32px rgba(201, 116, 59, .4);
+    transform: scale(1.05);
+  }
+}
+
+.gift-box.is-revealed {
+  animation: reveal .5s cubic-bezier(.34, 1.56, .64, 1);
+  background: linear-gradient(135deg, #ffd700, #e8c47f);
+  border-color: #ffd700;
+}
+
+@keyframes reveal {
+  0% { transform: scale(.5); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.gift-box__inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  height: 100%;
+}
+
+.gift-box__img {
+  width: 56px;
+  height: 56px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.gift-box__emoji {
+  font-size: 48px;
+  line-height: 56px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.gift-box__name {
+  font-family: var(--font-display);
+  font-size: 16px;
+  color: var(--text);
+  line-height: 1.3;
+  max-width: 90%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gift-box__hint {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+/* 操作区 */
+.controls {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   gap: 16px;
+  margin-bottom: 20px;
+}
+
+/* 本次结果滚动区 */
+.result-scroll {
+  max-height: 200px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.result-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+
+.result-scroll::-webkit-scrollbar-thumb {
+  background: var(--primary-soft);
+  border-radius: 3px;
+}
+
+/* 快捷抽数 */
+.count-quick {
+  display: flex;
+  gap: 6px;
   flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
 }
-.rf-row--fan {
-  gap: 10px;
+
+.count-chip {
+  padding: 8px 18px;
+  border: 1px solid var(--primary-soft);
+  border-radius: 999px;
+  background: var(--surface);
+  font-size: 14px;
+  color: var(--muted);
+  cursor: pointer;
+  transition: all .15s;
 }
-.rf-field {
+
+.count-chip:hover:not(:disabled) {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.count-chip.is-active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+  font-weight: 600;
+}
+
+.count-chip:disabled {
+  opacity: .5;
+  cursor: not-allowed;
+}
+
+.count-custom {
+  width: 70px;
+  padding: 8px 12px;
+  border: 2px solid var(--primary-soft);
+  border-radius: 999px;
+  font-size: 14px;
+  text-align: center;
+  color: var(--text);
+  background: #fff;
+  outline: none;
+  transition: border-color .15s;
+}
+
+.count-custom:focus {
+  border-color: var(--primary);
+}
+
+.count-custom:disabled {
+  opacity: .5;
+  cursor: not-allowed;
+}
+
+.count-unit {
+  font-size: 14px;
+  color: var(--muted);
+  align-self: center;
+  margin-left: -4px;
+}
+
+.fan-select {
   display: flex;
   align-items: center;
   gap: 8px;
-}
-.rf-label {
-  font-size: 13px;
-  color: var(--muted);
-  flex-shrink: 0;
-}
-.rf-input {
-  padding: 6px 10px;
-  border: 1px solid var(--primary-soft);
-  border-radius: 8px;
-  font-size: 14px;
-  color: var(--text);
-  background: #fff;
-}
-.rf-input--narrow {
-  width: 90px;
-}
-.rf-check {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 14px;
-  color: var(--text);
-  cursor: pointer;
-}
-.rf-fan {
-  font-size: 14px;
-  color: var(--text);
-  padding: 4px 12px;
-  border-radius: 999px;
+  padding: 8px 12px;
   background: var(--primary-soft);
+  border-radius: 10px;
+  margin-bottom: 16px;
 }
-.rf-actions {
-  display: flex;
-  justify-content: center;
-}
-.rf-empty {
-  padding: 28px 0;
-  text-align: center;
-  color: var(--muted);
-  font-size: 14px;
-}
-.rf-pool {
-  margin: 0 0 20px;
-  padding: 0;
-  list-style: none;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  gap: 12px;
-}
-.rf-prize {
-  padding: 18px 12px;
-  background: var(--surface);
-  border: 2px solid transparent;
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
-  text-align: center;
-  transition: border-color 0.15s ease, transform 0.15s ease;
-}
-.rf-prize.is-highlight {
-  border-color: var(--primary);
-  transform: scale(1.04);
-  box-shadow: 0 4px 16px rgba(201, 116, 59, 0.25);
-}
-.rf-prize__image {
-  width: 64px;
-  height: 64px;
-  margin: 0 auto 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 32px;
-  border-radius: 12px;
-  background: var(--primary-soft);
-  overflow: hidden;
-}
-.rf-prize__image img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-.rf-prize__name {
-  margin: 0;
-  font-size: 14px;
-  color: var(--text);
-}
-.rf-prize__meta {
-  margin: 4px 0 0;
+
+.fan-select__label {
   font-size: 12px;
   color: var(--muted);
 }
-.rf-results__title {
-  font-family: var(--font-display);
-  font-size: 20px;
-  color: var(--text);
-  margin: 0 0 12px;
-}
-.rf-results__list {
-  margin: 0;
+
+.fan-select__name,
+.fan-select__pick {
+  font-size: 13px;
+  font-weight: 600;
   padding: 0;
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  max-height: 320px;
-  overflow-y: auto;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--primary);
 }
-.rf-result {
+
+.fan-select__name {
+  cursor: default;
+}
+
+.fan-select__clear {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--muted);
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.fan-select__clear:disabled {
+  opacity: .5;
+  cursor: not-allowed;
+}
+
+.mode-selector {
+  display: flex;
+  gap: 0;
+  border: 1px solid var(--primary-soft);
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--surface);
+}
+
+.mode-btn {
+  padding: 8px 24px;
+  border: none;
+  background: transparent;
+  font-size: 14px;
+  color: var(--muted);
+  cursor: pointer;
+  transition: all .15s;
+}
+
+.mode-btn + .mode-btn {
+  border-left: 1px solid var(--primary-soft);
+}
+
+.mode-btn.is-active {
+  background: var(--primary-soft);
+  color: var(--primary);
+  font-weight: 600;
+}
+
+.mode-btn:disabled {
+  opacity: .5;
+  cursor: not-allowed;
+}
+
+.count-selector {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
+}
+
+.count-selector label {
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.count-selector input {
+  width: 80px;
   padding: 10px 14px;
-  background: var(--surface);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
-  font-size: 13px;
-}
-.rf-result__idx {
-  width: 32px;
-  text-align: right;
-  color: var(--muted);
-  font-variant-numeric: tabular-nums;
-}
-.rf-result__prize {
-  flex: 1;
-  min-width: 0;
+  border: 2px solid var(--primary-soft);
+  border-radius: 12px;
+  font-size: 16px;
+  text-align: center;
   color: var(--text);
+  background: #fff;
+  outline: none;
 }
-.rf-result__fan {
+
+.count-selector input:focus {
+  border-color: var(--primary);
+}
+
+.count-selector input:disabled {
+  opacity: .6;
+  cursor: not-allowed;
+}
+
+.btn-group {
+  display: flex;
+  gap: 16px;
+}
+
+/* 抽奖结果面板（角色趴趴） */
+.result-panel {
+  position: relative;
+  margin-top: 40px;
+}
+
+.result-panel__mascot {
+  position: absolute;
+  top: -131px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 3;
+  pointer-events: none;
+  filter: drop-shadow(0 0 6px rgba(0,0,0,.2));
+}
+
+.result-panel__mascot img {
+  width: 180px;
+  height: auto;
+  display: block;
+}
+
+.result-panel__card {
+  background: var(--surface);
+  border: 2px solid var(--primary-soft);
+  border-radius: 20px;
+  padding: 20px;
+  padding-top: 28px;
+  box-shadow: 0 8px 32px rgba(120, 90, 50, .12);
+  position: relative;
+  z-index: 2;
+  margin-top: 150px;
+}
+
+.result-panel__header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.result-panel__header h3 {
+  font-size: 20px;
+  color: var(--text);
+  margin: 0;
+  flex: 1;
+}
+
+.result-panel__count {
+  font-size: 13px;
   color: var(--muted);
+  background: var(--primary-soft);
+  padding: 4px 12px;
+  border-radius: 999px;
 }
-.rf-result__time {
+
+.result-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+  gap: 8px;
+}
+
+.result-cell {
+  aspect-ratio: 1;
+  background: var(--primary-soft);
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  animation: pop-in .4s cubic-bezier(.34, 1.56, .64, 1);
+}
+
+@keyframes pop-in {
+  0% { transform: scale(0); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.result-cell__img {
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+}
+
+.result-cell__emoji {
+  font-size: 24px;
+}
+
+.result-cell__name {
+  font-size: 10px;
+  color: var(--text);
+  font-weight: 600;
+}
+
+/* 彩带庆祝（z-index 低于弹窗 1000，避免遮住弹窗） */
+.confetti {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 900;
+  overflow: hidden;
+}
+
+.confetti-piece {
+  position: absolute;
+  top: -16px;
+  border-radius: 1px;
+  opacity: 0.95;
+  animation: confetti-fall 2s linear forwards;
+}
+
+.confetti-piece.is-round {
+  border-radius: 50%;
+}
+
+@keyframes confetti-fall {
+  0% { transform: translate3d(0, -16px, 0) rotate(0deg); opacity: 0.95; }
+  100% { transform: translate3d(12px, 105vh, 0) rotate(560deg); opacity: 0.85; }
+}
+
+/* 粉丝选择弹窗 */
+.fan-picker {
+  padding: 10px 0;
+}
+
+.fan-picker__hint {
+  font-size: 14px;
   color: var(--muted);
-  font-variant-numeric: tabular-nums;
+  margin-bottom: 16px;
 }
-.rf-picker__search {
+
+.fan-picker__search {
   display: flex;
   gap: 8px;
-  margin-bottom: 12px;
+  margin-bottom: 16px;
 }
-.rf-picker__search .rf-input {
+
+.fan-picker__search input {
   flex: 1;
+  padding: 10px 14px;
+  border: 1px solid var(--primary-soft);
+  border-radius: 10px;
+  font-size: 14px;
+  color: var(--text);
+  background: #fff;
+  outline: none;
 }
-.rf-picker__list {
-  margin: 0;
-  padding: 0;
-  list-style: none;
+
+.fan-picker__search input:focus {
+  border-color: var(--primary);
+}
+
+.fan-picker__empty {
+  text-align: center;
+  color: var(--muted);
+  padding: 20px;
+}
+
+.fan-picker__list {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  max-height: 50vh;
+  max-height: 300px;
   overflow-y: auto;
 }
-.rf-picker__item {
+
+.fan-picker__item {
   width: 100%;
   text-align: left;
-  padding: 10px 14px;
+  padding: 12px 16px;
   border: 1px solid var(--primary-soft);
-  border-radius: var(--radius);
+  border-radius: 10px;
   background: var(--surface);
   font-size: 14px;
   color: var(--text);
   cursor: pointer;
+  transition: border-color .15s;
 }
-.rf-picker__item:hover {
+
+.fan-picker__item:hover {
   border-color: var(--primary);
+}
+
+/* 粉丝选择弹窗 */
+.fan-picker {
+  padding: 4px 0;
+}
+
+.fan-picker__hint {
+  font-size: 14px;
+  color: var(--muted);
+  margin-bottom: 16px;
+}
+
+.fan-picker__search {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.fan-picker__search input {
+  flex: 1;
+  padding: 10px 14px;
+  border: 1px solid var(--primary-soft);
+  border-radius: 10px;
+  font-size: 14px;
+  color: var(--text);
+  background: #fff;
+  outline: none;
+}
+
+.fan-picker__search input:focus {
+  border-color: var(--primary);
+}
+
+.fan-picker__empty {
+  text-align: center;
+  color: var(--muted);
+  padding: 24px;
+}
+
+.fan-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  max-height: 320px;
+  overflow-y: auto;
+  padding: 4px 0;
+}
+
+.fan-chip {
+  padding: 6px 14px;
+  border: 1px solid var(--primary-soft);
+  border-radius: 999px;
+  background: var(--surface);
+  font-size: 13px;
+  color: var(--text);
+  cursor: pointer;
+  transition: all .12s;
+  white-space: nowrap;
+}
+
+.fan-chip:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+  background: rgba(201, 116, 59, .06);
+}
+
+.fan-chip.is-active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}
+
+/* 发福利表单 */
+.grant__target {
+  font-size: 15px;
+  margin-bottom: 16px;
+}
+
+.grant__target b {
+  color: var(--primary);
+}
+
+.grant__change {
+  margin-left: 8px;
+  font-size: 12px;
+  color: var(--muted);
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.grant__hint {
+  font-size: 13px;
+  color: var(--muted);
+  margin-bottom: 16px;
+}
+
+.grant__cards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.grant-card {
+  background: var(--primary-soft);
+  border-radius: 10px;
+  padding: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.grant-card__icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  background: var(--surface);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.grant-card__info {
+  flex: 1;
+  min-width: 0;
+}
+
+.grant-card__name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.grant-card__count {
+  font-size: 10px;
+  color: var(--muted);
+}
+
+.grant-card__input {
+  width: 40px;
+  padding: 5px 6px;
+  border: 1px solid rgba(255, 255, 255, .6);
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+  color: var(--text);
+  background: #fff;
+  outline: none;
+  flex-shrink: 0;
+}
+
+.grant-card__input:focus {
+  border-color: var(--primary);
+}
+
+.grant__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.grant__chip {
+  padding: 6px 14px;
+  border: 1px solid var(--primary-soft);
+  border-radius: 999px;
+  background: var(--surface);
+  font-size: 12px;
+  color: var(--muted);
+  cursor: pointer;
+  transition: all .15s;
+}
+
+.grant__chip:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.grant__chip.is-active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
 }
 </style>

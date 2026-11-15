@@ -32,6 +32,7 @@ export const ERR = {
   // 文件上传
   UPLOAD_NO_FILE: (message = '请选择要上传的文件') => new AppError(1020, message, 400),
   FILE_NOT_FOUND: (message = '文件不存在') => new AppError(1021, message, 404),
+  FILE_IN_USE: (message = '该文件正被业务记录引用，不能删除') => new AppError(1028, message, 400),
   // 抽奖
   PRIZE_NOT_FOUND: (message = '礼品不存在') => new AppError(1022, message, 404),
   PRIZE_NAME_TAKEN: (message = '该礼品名称已存在') => new AppError(1023, message, 400),
@@ -39,5 +40,5 @@ export const ERR = {
   DRAW_COUNT_INVALID: (message = '抽奖次数必须为 1~100 的整数') => new AppError(1025, message, 400),
   BATCH_ITEMS_INVALID: (message = '批量增减的条目非法') => new AppError(1026, message, 400),
   // 抽奖：系统自带礼品（关联福利类型）不可编辑/删除
-  PRIZE_SYSTEM_LOCKED: (message = '系统自带礼品不能编辑或删除，请到「福利管理」里操作') => new AppError(1027, message, 400),
+  PRIZE_SYSTEM_LOCKED: (message = '系统自带礼品的名称由福利类型维护，只能修改图片/权重/库存') => new AppError(1027, message, 400),
 }

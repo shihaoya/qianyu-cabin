@@ -83,6 +83,18 @@ Props 必须声明类型；跨组件通信优先 props / emits，跨页面状态
 - 布局：PC 采用宽屏布局，主内容最大宽度约 `1080px` 居中；顶部导航 + 内容区；断点 `@media (max-width: 768px)` 仅作兜底，主适配目标为桌面。
 - 组件样式默认 `<style scoped>`；跨组件通用类放 `styles/`。
 
+### 共享静态资源（PC / Mobile 共用）
+
+- **跨端共享的图片、音频等静态资源**放仓库根的 `shared/assets/` 目录（如 `shared/assets/qycj.png`）。
+- 前端通过 `/shared/assets/...` 路径直接引用（vite 已配置 `fs.allow` 放行仓库根）。
+- **禁止**把共享资源复制到 `pc/public/` 或 `mobile/public/` 各自维护；新增共享资源时放 `shared/assets/` 并在此登记。
+
+### 共享配置与代码（PC / Mobile 共用）
+
+- **跨端共享的常量、配置、工具函数**放仓库根的 `shared/` 目录（如 `shared/raffle.js`），通过 vite 别名 `@cabin` 引用（`import { X } from '@cabin/xxx.js'`）。
+- 两端 `vite.config.js` 已统一配置 `resolve.alias['@cabin']` 指向 `../shared`。
+- **禁止**在 `pc/` 或 `mobile/` 内重复定义相同常量；新增跨端配置时放 `shared/` 并在此登记。
+
 ### 弹窗交互约定（通用）
 
 - **遮罩不关闭弹窗**：弹框只能点标题区右上角的 ✕ 关闭按钮（或内部的取消/确定等明确按钮）关闭，**点击遮罩层、按 Esc 都不关闭**——避免误触导致未保存内容丢失。
@@ -212,7 +224,7 @@ const url = await fetchFileObjectURL(id)   // 带 token 取 blob → 本地 Obje
 
 - **`views/AdminRaffle.vue`（抽奖管理）**：奖池礼品 CRUD——名称（唯一）、图片（非必填，走 `BaseUpload`，`category="raffle-prize"`）、中奖权重（整数）、剩余数量（-1 无限制）、启停。列表实时显示中奖率；「抽奖记录」弹窗分页查看全部流水。
 - **系统自带礼品**：列表中带「系统自带」徽标的礼品来自「福利管理-福利类型」，由后端自动生成。此类礼品**只能启停**，前端隐藏「编辑」「删除」按钮（`benefitTypeId != null` 判定），并更新提示文案说明。
-- **`views/Raffle.vue`（抽奖）**：设置连抽次数（1~100）、可勾选「跳过动画」快速连抽；「中奖粉丝」可选，粉丝来自**福利管理的粉丝档案**（`listFans`，不是 User）。抽奖后奖池与结果就地刷新。
+- **`views/Raffle.vue`（抽奖）**：设置连抽次数（1~100）、可勾选「跳过动画」快速连抽；「抽奖粉丝」可选，粉丝来自**福利管理的粉丝档案**（`listFans`，不是 User）。抽奖后奖池与结果就地刷新。
 - **中奖率口径**（前端展示须与服务端一致）：中奖率 = 该礼品权重 ÷ 所有「可用」礼品权重之和；可用 = `enabled && weight > 0 && (stock === -1 || stock > 0)`。权重 0 / 库存 0 / 停用的礼品不会进池也不会被抽中，展示概率按 0 处理。
 - 顶部导航入口在 `components/base/AppHeader.vue`，按 `can(auth.user, CAP.MANAGE_RAFFLE)` 显隐。
 

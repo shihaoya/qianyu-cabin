@@ -1,0 +1,978 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>发放弹窗 · 5 种展示形式</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=ZCOOL+KuaiLe&display=swap');
+
+    :root {
+      --font-display: "ZCOOL KuaiLe", "PingFang SC", system-ui, sans-serif;
+      --bg: #f7f1e3;
+      --surface: #fffdf8;
+      --primary: #c9743b;
+      --primary-soft: #f0dcb8;
+      --text: #3a322a;
+      --muted: #8a7d6b;
+      --radius: 14px;
+      --shadow: 0 6px 20px rgba(120, 90, 50, .12);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+      background: var(--bg);
+      min-height: 100vh;
+      padding: 40px 20px;
+      color: var(--text);
+    }
+
+    .container { max-width: 1200px; margin: 0 auto; }
+
+    .header { text-align: center; margin-bottom: 50px; }
+    .header h1 {
+      font-family: var(--font-display);
+      font-size: 32px;
+      color: var(--primary);
+      margin-bottom: 8px;
+    }
+    .header p { color: var(--muted); font-size: 14px; }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+      gap: 24px;
+    }
+
+    .demo-card {
+      background: var(--surface);
+      border-radius: 20px;
+      overflow: hidden;
+      box-shadow: var(--shadow);
+      transition: all .3s;
+      cursor: pointer;
+    }
+    .demo-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 12px 40px rgba(120, 90, 50, .2);
+    }
+
+    .preview {
+      height: 320px;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      overflow: hidden;
+    }
+
+    .preview-label {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      padding: 4px 12px;
+      background: rgba(201, 116, 59, .1);
+      border-radius: 999px;
+      font-size: 11px;
+      color: var(--primary);
+      font-weight: 600;
+    }
+
+    .info { padding: 20px; }
+    .info h3 {
+      font-family: var(--font-display);
+      font-size: 18px;
+      color: var(--text);
+      margin-bottom: 6px;
+    }
+    .info p {
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    /* ========== V1 紧凑卡片 ========== */
+    .v1 .modal {
+      width: 320px;
+      background: var(--surface);
+      border-radius: 16px;
+      box-shadow: 0 8px 32px rgba(0,0,0,.15);
+      overflow: hidden;
+    }
+    .v1 .modal-head {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--primary-soft);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .v1 .modal-title {
+      font-family: var(--font-display);
+      font-size: 18px;
+      color: var(--text);
+    }
+    .v1 .modal-close {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      border: none;
+      background: var(--primary-soft);
+      color: var(--muted);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+    }
+    .v1 .modal-body { padding: 16px 20px; }
+    .v1 .fan-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+    .v1 .fan-label { font-size: 13px; color: var(--muted); }
+    .v1 .fan-name {
+      padding: 6px 14px;
+      background: var(--primary-soft);
+      border-radius: 999px;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--primary);
+    }
+    .v1 .benefit-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+    .v1 .benefit-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 14px;
+      background: var(--primary-soft);
+      border-radius: 10px;
+    }
+    .v1 .benefit-name {
+      font-size: 14px;
+      font-weight: 600;
+    }
+    .v1 .benefit-count {
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .v1 .benefit-input {
+      width: 60px;
+      padding: 6px 10px;
+      border: 1px solid var(--primary-soft);
+      border-radius: 8px;
+      text-align: center;
+      font-size: 14px;
+      background: #fff;
+      outline: none;
+    }
+    .v1 .reason-input {
+      width: 100%;
+      padding: 10px 14px;
+      border: 1px solid var(--primary-soft);
+      border-radius: 10px;
+      font-size: 13px;
+      background: #fff;
+      outline: none;
+      margin-bottom: 12px;
+    }
+    .v1 .reason-chips {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin-bottom: 16px;
+    }
+    .v1 .reason-chip {
+      padding: 4px 10px;
+      border: 1px solid var(--primary-soft);
+      border-radius: 999px;
+      font-size: 11px;
+      color: var(--muted);
+      background: var(--surface);
+      cursor: pointer;
+    }
+    .v1 .modal-foot {
+      padding: 12px 20px;
+      border-top: 1px solid var(--primary-soft);
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+    .v1 .btn {
+      padding: 8px 20px;
+      border-radius: 999px;
+      border: none;
+      font-size: 13px;
+      cursor: pointer;
+    }
+    .v1 .btn-primary {
+      background: var(--primary);
+      color: #fff;
+    }
+    .v1 .btn-text {
+      background: none;
+      color: var(--muted);
+    }
+
+    /* ========== V2 大卡片 ========== */
+    .v2 .modal {
+      width: 340px;
+      background: var(--surface);
+      border-radius: 20px;
+      box-shadow: 0 8px 32px rgba(0,0,0,.15);
+      overflow: hidden;
+    }
+    .v2 .modal-head {
+      padding: 20px 24px 16px;
+      text-align: center;
+    }
+    .v2 .modal-title {
+      font-family: var(--font-display);
+      font-size: 20px;
+      color: var(--text);
+    }
+    .v2 .fan-row {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 0 24px 16px;
+    }
+    .v2 .fan-avatar {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: var(--primary);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      font-weight: 600;
+    }
+    .v2 .fan-name {
+      font-size: 16px;
+      font-weight: 600;
+    }
+    .v2 .benefit-cards {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      padding: 0 24px 16px;
+    }
+    .v2 .benefit-card {
+      background: var(--primary-soft);
+      border-radius: 12px;
+      padding: 14px;
+      text-align: center;
+    }
+    .v2 .benefit-name {
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+    .v2 .benefit-count {
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--primary);
+      margin-bottom: 8px;
+    }
+    .v2 .benefit-input {
+      width: 100%;
+      padding: 8px;
+      border: 1px solid rgba(255,255,255,.5);
+      border-radius: 8px;
+      text-align: center;
+      font-size: 14px;
+      background: #fff;
+      outline: none;
+    }
+    .v2 .reason-section {
+      padding: 0 24px 16px;
+    }
+    .v2 .reason-label {
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+    .v2 .reason-input {
+      width: 100%;
+      padding: 10px 14px;
+      border: 1px solid var(--primary-soft);
+      border-radius: 10px;
+      font-size: 13px;
+      background: #fff;
+      outline: none;
+    }
+    .v2 .modal-foot {
+      padding: 12px 24px 20px;
+      display: flex;
+      gap: 12px;
+    }
+    .v2 .btn {
+      flex: 1;
+      padding: 12px;
+      border-radius: 999px;
+      border: none;
+      font-size: 14px;
+      cursor: pointer;
+    }
+    .v2 .btn-primary {
+      background: var(--primary);
+      color: #fff;
+    }
+    .v2 .btn-secondary {
+      background: var(--primary-soft);
+      color: var(--text);
+    }
+
+    /* ========== V3 列表行 ========== */
+    .v3 .modal {
+      width: 360px;
+      background: var(--surface);
+      border-radius: 16px;
+      box-shadow: 0 8px 32px rgba(0,0,0,.15);
+      overflow: hidden;
+    }
+    .v3 .modal-head {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--primary-soft);
+    }
+    .v3 .modal-title {
+      font-family: var(--font-display);
+      font-size: 18px;
+      color: var(--text);
+    }
+    .v3 .modal-body { padding: 16px 20px; }
+    .v3 .fan-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 14px;
+      background: var(--primary-soft);
+      border-radius: 10px;
+      margin-bottom: 16px;
+    }
+    .v3 .fan-label { font-size: 13px; color: var(--muted); }
+    .v3 .fan-name {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--primary);
+    }
+    .v3 .benefit-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+    .v3 .benefit-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 14px;
+      background: #fff;
+      border: 1px solid var(--primary-soft);
+      border-radius: 10px;
+    }
+    .v3 .benefit-info {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .v3 .benefit-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      background: var(--primary-soft);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+    }
+    .v3 .benefit-name {
+      font-size: 14px;
+      font-weight: 600;
+    }
+    .v3 .benefit-count {
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .v3 .benefit-input {
+      width: 56px;
+      padding: 6px 10px;
+      border: 1px solid var(--primary-soft);
+      border-radius: 8px;
+      text-align: center;
+      font-size: 14px;
+      background: var(--bg);
+      outline: none;
+    }
+    .v3 .reason-section {
+      margin-bottom: 16px;
+    }
+    .v3 .reason-label {
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+    .v3 .reason-input {
+      width: 100%;
+      padding: 10px 14px;
+      border: 1px solid var(--primary-soft);
+      border-radius: 10px;
+      font-size: 13px;
+      background: #fff;
+      outline: none;
+    }
+    .v3 .reason-chips {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin-top: 8px;
+    }
+    .v3 .reason-chip {
+      padding: 4px 10px;
+      border: 1px solid var(--primary-soft);
+      border-radius: 999px;
+      font-size: 11px;
+      color: var(--muted);
+      background: var(--surface);
+      cursor: pointer;
+    }
+    .v3 .modal-foot {
+      padding: 12px 20px;
+      border-top: 1px solid var(--primary-soft);
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+    .v3 .btn {
+      padding: 8px 20px;
+      border-radius: 999px;
+      border: none;
+      font-size: 13px;
+      cursor: pointer;
+    }
+    .v3 .btn-primary {
+      background: var(--primary);
+      color: #fff;
+    }
+    .v3 .btn-text {
+      background: none;
+      color: var(--muted);
+    }
+
+    /* ========== V4 分组卡片 ========== */
+    .v4 .modal {
+      width: 340px;
+      background: var(--surface);
+      border-radius: 20px;
+      box-shadow: 0 8px 32px rgba(0,0,0,.15);
+      overflow: hidden;
+    }
+    .v4 .modal-head {
+      padding: 20px 24px;
+      text-align: center;
+      border-bottom: 1px solid var(--primary-soft);
+    }
+    .v4 .modal-title {
+      font-family: var(--font-display);
+      font-size: 20px;
+      color: var(--text);
+      margin-bottom: 4px;
+    }
+    .v4 .fan-row {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+    .v4 .fan-label { font-size: 13px; color: var(--muted); }
+    .v4 .fan-name {
+      padding: 4px 12px;
+      background: var(--primary-soft);
+      border-radius: 999px;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--primary);
+    }
+    .v4 .modal-body { padding: 16px 24px; }
+    .v4 .benefit-group {
+      margin-bottom: 16px;
+    }
+    .v4 .group-title {
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+    .v4 .benefit-cards {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .v4 .benefit-card {
+      background: var(--primary-soft);
+      border-radius: 12px;
+      padding: 12px;
+    }
+    .v4 .benefit-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+    .v4 .benefit-name {
+      font-size: 13px;
+      font-weight: 600;
+    }
+    .v4 .benefit-count {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--primary);
+    }
+    .v4 .benefit-input {
+      width: 100%;
+      padding: 8px;
+      border: none;
+      border-radius: 8px;
+      text-align: center;
+      font-size: 14px;
+      background: #fff;
+      outline: none;
+    }
+    .v4 .reason-section {
+      margin-bottom: 16px;
+    }
+    .v4 .reason-label {
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+    .v4 .reason-input {
+      width: 100%;
+      padding: 10px 14px;
+      border: 1px solid var(--primary-soft);
+      border-radius: 10px;
+      font-size: 13px;
+      background: #fff;
+      outline: none;
+    }
+    .v4 .modal-foot {
+      padding: 12px 24px 20px;
+      display: flex;
+      gap: 12px;
+    }
+    .v4 .btn {
+      flex: 1;
+      padding: 12px;
+      border-radius: 999px;
+      border: none;
+      font-size: 14px;
+      cursor: pointer;
+    }
+    .v4 .btn-primary {
+      background: var(--primary);
+      color: #fff;
+    }
+    .v4 .btn-secondary {
+      background: var(--primary-soft);
+      color: var(--text);
+    }
+
+    /* ========== V5 极简行 ========== */
+    .v5 .modal {
+      width: 320px;
+      background: var(--surface);
+      border-radius: 16px;
+      box-shadow: 0 8px 32px rgba(0,0,0,.15);
+      overflow: hidden;
+    }
+    .v5 .modal-head {
+      padding: 16px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .v5 .modal-title {
+      font-family: var(--font-display);
+      font-size: 18px;
+      color: var(--text);
+    }
+    .v5 .modal-body { padding: 0 20px 16px; }
+    .v5 .fan-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 14px;
+      background: var(--primary-soft);
+      border-radius: 10px;
+      margin-bottom: 16px;
+    }
+    .v5 .fan-label { font-size: 13px; color: var(--muted); }
+    .v5 .fan-name {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--primary);
+    }
+    .v5 .benefit-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+    .v5 .benefit-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--primary-soft);
+    }
+    .v5 .benefit-row:last-child {
+      border-bottom: none;
+    }
+    .v5 .benefit-info {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .v5 .benefit-name {
+      font-size: 14px;
+      font-weight: 600;
+    }
+    .v5 .benefit-count {
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .v5 .benefit-input {
+      width: 52px;
+      padding: 6px 10px;
+      border: 1px solid var(--primary-soft);
+      border-radius: 8px;
+      text-align: center;
+      font-size: 14px;
+      background: #fff;
+      outline: none;
+    }
+    .v5 .reason-section {
+      margin-bottom: 16px;
+    }
+    .v5 .reason-label {
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+    .v5 .reason-input {
+      width: 100%;
+      padding: 10px 14px;
+      border: 1px solid var(--primary-soft);
+      border-radius: 10px;
+      font-size: 13px;
+      background: #fff;
+      outline: none;
+    }
+    .v5 .modal-foot {
+      padding: 12px 20px;
+      border-top: 1px solid var(--primary-soft);
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+    .v5 .btn {
+      padding: 10px 24px;
+      border-radius: 999px;
+      border: none;
+      font-size: 14px;
+      cursor: pointer;
+    }
+    .v5 .btn-primary {
+      background: var(--primary);
+      color: #fff;
+    }
+    .v5 .btn-text {
+      background: none;
+      color: var(--muted);
+    }
+
+    .footer {
+      text-align: center;
+      margin-top: 60px;
+      padding: 30px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <div class="header">
+      <h1>✦ 发放弹窗 · 5 种展示形式 ✦</h1>
+      <p>点击卡片选择喜欢的风格，我按它修改正式的弹窗</p>
+    </div>
+
+    <div class="grid">
+
+      <!-- V1 紧凑卡片 -->
+      <div class="demo-card" onclick="select('v1')">
+        <div class="preview v1">
+          <span class="preview-label">V1 紧凑卡片</span>
+          <div class="modal">
+            <div class="modal-head">
+              <span class="modal-title">发放给粉丝</span>
+              <button class="modal-close">✕</button>
+            </div>
+            <div class="modal-body">
+              <div class="fan-row">
+                <span class="fan-label">发放给</span>
+                <span class="fan-name">杨大爷</span>
+              </div>
+              <div class="benefit-list">
+                <div class="benefit-item">
+                  <div>
+                    <div class="benefit-name">奶茶</div>
+                    <div class="benefit-count">抽中 3 个</div>
+                  </div>
+                  <input class="benefit-input" value="3">
+                </div>
+                <div class="benefit-item">
+                  <div>
+                    <div class="benefit-name">徽章</div>
+                    <div class="benefit-count">抽中 2 个</div>
+                  </div>
+                  <input class="benefit-input" value="2">
+                </div>
+              </div>
+              <input class="reason-input" placeholder="备注（必填）">
+              <div class="reason-chips">
+                <span class="reason-chip">开通星守护</span>
+                <span class="reason-chip">开通会员</span>
+              </div>
+            </div>
+            <div class="modal-foot">
+              <button class="btn btn-text">取消</button>
+              <button class="btn btn-primary">确认发放</button>
+            </div>
+          </div>
+        </div>
+        <div class="info">
+          <h3>V1 · 紧凑卡片</h3>
+          <p>单列纵向排列，每行一个福利，左侧名称右侧输入框，适合福利类型较少时</p>
+        </div>
+      </div>
+
+      <!-- V2 大卡片 -->
+      <div class="demo-card" onclick="select('v2')">
+        <div class="preview v2">
+          <span class="preview-label">V2 大卡片</span>
+          <div class="modal">
+            <div class="modal-head">
+              <div class="modal-title">发放给粉丝</div>
+              <div class="fan-row">
+                <div class="fan-avatar">杨</div>
+                <span class="fan-name">杨大爷</span>
+              </div>
+            </div>
+            <div class="benefit-cards">
+              <div class="benefit-card">
+                <div class="benefit-name">奶茶</div>
+                <div class="benefit-count">×3</div>
+                <input class="benefit-input" value="3">
+              </div>
+              <div class="benefit-card">
+                <div class="benefit-name">徽章</div>
+                <div class="benefit-count">×2</div>
+                <input class="benefit-input" value="2">
+              </div>
+            </div>
+            <div class="reason-section">
+              <div class="reason-label">备注（必填）</div>
+              <input class="reason-input" placeholder="如：直播抽奖中奖">
+            </div>
+            <div class="modal-foot">
+              <button class="btn btn-secondary">取消</button>
+              <button class="btn btn-primary">确认发放</button>
+            </div>
+          </div>
+        </div>
+        <div class="info">
+          <h3>V2 · 大卡片</h3>
+          <p>居中标题 + 头像，福利以双列大卡片展示，突出数量，适合类型多且想强调视觉</p>
+        </div>
+      </div>
+
+      <!-- V3 列表行 -->
+      <div class="demo-card" onclick="select('v3')">
+        <div class="preview v3">
+          <span class="preview-label">V3 列表行</span>
+          <div class="modal">
+            <div class="modal-head">
+              <span class="modal-title">发放给粉丝</span>
+            </div>
+            <div class="modal-body">
+              <div class="fan-row">
+                <span class="fan-label">发放给</span>
+                <span class="fan-name">杨大爷</span>
+              </div>
+              <div class="benefit-list">
+                <div class="benefit-row">
+                  <div class="benefit-info">
+                    <div class="benefit-icon">🎁</div>
+                    <div>
+                      <div class="benefit-name">奶茶</div>
+                      <div class="benefit-count">抽中 3 个</div>
+                    </div>
+                  </div>
+                  <input class="benefit-input" value="3">
+                </div>
+                <div class="benefit-row">
+                  <div class="benefit-info">
+                    <div class="benefit-icon">🎀</div>
+                    <div>
+                      <div class="benefit-name">徽章</div>
+                      <div class="benefit-count">抽中 2 个</div>
+                    </div>
+                  </div>
+                  <input class="benefit-input" value="2">
+                </div>
+              </div>
+              <div class="reason-section">
+                <div class="reason-label">备注（必填）</div>
+                <input class="reason-input" placeholder="如：直播抽奖中奖">
+                <div class="reason-chips">
+                  <span class="reason-chip">开通星守护</span>
+                  <span class="reason-chip">开通会员</span>
+                </div>
+              </div>
+            </div>
+            <div class="modal-foot">
+              <button class="btn btn-text">取消</button>
+              <button class="btn btn-primary">确认发放</button>
+            </div>
+          </div>
+        </div>
+        <div class="info">
+          <h3>V3 · 列表行</h3>
+          <p>白底列表行，左侧图标+名称，右侧输入框，层次清晰适合类型较多时</p>
+        </div>
+      </div>
+
+      <!-- V4 分组卡片 -->
+      <div class="demo-card" onclick="select('v4')">
+        <div class="preview v4">
+          <span class="preview-label">V4 分组卡片</span>
+          <div class="modal">
+            <div class="modal-head">
+              <div class="modal-title">发放给粉丝</div>
+              <div class="fan-row">
+                <span class="fan-label">发放给</span>
+                <span class="fan-name">杨大爷</span>
+              </div>
+            </div>
+            <div class="modal-body">
+              <div class="benefit-group">
+                <div class="group-title">抽中的福利</div>
+                <div class="benefit-cards">
+                  <div class="benefit-card">
+                    <div class="benefit-head">
+                      <span class="benefit-name">奶茶</span>
+                      <span class="benefit-count">×3</span>
+                    </div>
+                    <input class="benefit-input" value="3">
+                  </div>
+                  <div class="benefit-card">
+                    <div class="benefit-head">
+                      <span class="benefit-name">徽章</span>
+                      <span class="benefit-count">×2</span>
+                    </div>
+                    <input class="benefit-input" value="2">
+                  </div>
+                </div>
+              </div>
+              <div class="reason-section">
+                <div class="reason-label">备注（必填）</div>
+                <input class="reason-input" placeholder="如：直播抽奖中奖">
+              </div>
+            </div>
+            <div class="modal-foot">
+              <button class="btn btn-secondary">取消</button>
+              <button class="btn btn-primary">确认发放</button>
+            </div>
+          </div>
+        </div>
+        <div class="info">
+          <h3>V4 · 分组卡片</h3>
+          <p>标题+粉丝居中，福利分组展示，双列卡片带标题栏，信息分组明确</p>
+        </div>
+      </div>
+
+      <!-- V5 极简行 -->
+      <div class="demo-card" onclick="select('v5')">
+        <div class="preview v5">
+          <span class="preview-label">V5 极简行</span>
+          <div class="modal">
+            <div class="modal-head">
+              <span class="modal-title">发放给粉丝</span>
+              <button class="modal-close">✕</button>
+            </div>
+            <div class="modal-body">
+              <div class="fan-row">
+                <span class="fan-label">发放给</span>
+                <span class="fan-name">杨大爷</span>
+              </div>
+              <div class="benefit-list">
+                <div class="benefit-row">
+                  <div class="benefit-info">
+                    <span class="benefit-name">奶茶</span>
+                    <span class="benefit-count">×3</span>
+                  </div>
+                  <input class="benefit-input" value="3">
+                </div>
+                <div class="benefit-row">
+                  <div class="benefit-info">
+                    <span class="benefit-name">徽章</span>
+                    <span class="benefit-count">×2</span>
+                  </div>
+                  <input class="benefit-input" value="2">
+                </div>
+              </div>
+              <div class="reason-section">
+                <div class="reason-label">备注（必填）</div>
+                <input class="reason-input" placeholder="如：直播抽奖中奖">
+              </div>
+            </div>
+            <div class="modal-foot">
+              <button class="btn btn-text">取消</button>
+              <button class="btn btn-primary">确认发放</button>
+            </div>
+          </div>
+        </div>
+        <div class="info">
+          <h3>V5 · 极简行</h3>
+          <p>去掉了卡片背景，用分隔线区分，最轻量适合追求极简风格</p>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="footer">
+      <p>点击卡片选择风格（V1~V5），或告诉我混合搭配，我按选定风格修改正式弹窗</p>
+    </div>
+  </div>
+
+  <script>
+    function select(v) {
+      alert('你选择了 ' + v.toUpperCase() + '，请告诉我，我按这个风格修改正式弹窗')
+    }
+  </script>
+
+</body>
+</html>

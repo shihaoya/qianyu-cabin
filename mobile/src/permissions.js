@@ -24,6 +24,7 @@ export const CAP = {
   OWNER_TOOLS: 'ownerTools', // 仅开发管理员可见的开发工具（如图标工作室）
   MANAGE_BENEFITS: 'manageBenefits', // 福利管理：福利类型与粉丝的卡
   MANAGE_RAFFLE: 'manageRaffle', // 抽奖：礼品维护与抽奖执行（含跳过动画/连抽）
+  MANAGE_FILES: 'manageFiles', // 文件管理：中央文件库的上传/查看/删除（含被业务引用的文件）
 }
 
 // 能力 → 所需最低角色
@@ -36,6 +37,8 @@ export const CAP_ROLE = {
   [CAP.MANAGE_BENEFITS]: ROLE.ADMIN,
   // 抽奖与福利管理同级：管理员与开发管理员均可使用
   [CAP.MANAGE_RAFFLE]: ROLE.ADMIN,
+  // 文件管理仅开发管理员可见：中央文件库的上传/查看/删除（含被业务引用的文件）
+  [CAP.MANAGE_FILES]: ROLE.OWNER,
 }
 
 export const rankOf = (role) => ROLE_RANK[role] ?? 0

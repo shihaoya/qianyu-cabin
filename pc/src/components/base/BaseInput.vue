@@ -16,6 +16,7 @@ defineProps({
   error: { type: String, default: '' },
   type: { type: String, default: 'text' },
   placeholder: { type: String, default: '' },
+  disabled: { type: Boolean, default: false },
 })
 defineEmits(['update:modelValue'])
 </script>
@@ -28,10 +29,11 @@ defineEmits(['update:modelValue'])
     >{{ label }}</span>
     <input
       class="base-input__field"
-      :class="{ 'has-error': error }"
+      :class="{ 'has-error': error, 'is-disabled': disabled }"
       :type="type"
       :placeholder="placeholder"
       :value="modelValue"
+      :disabled="disabled"
       @input="$emit('update:modelValue', $event.target.value)"
     >
     <span
@@ -67,6 +69,11 @@ defineEmits(['update:modelValue'])
 }
 .base-input__field.has-error {
   border-color: #d9534f;
+}
+.base-input__field.is-disabled {
+  background: rgba(0, 0, 0, .04);
+  color: var(--muted);
+  cursor: not-allowed;
 }
 .base-input__error {
   display: block;

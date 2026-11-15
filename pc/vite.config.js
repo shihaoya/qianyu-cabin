@@ -27,5 +27,7 @@ export default defineConfig(({ mode }) => {
         },
       },
     },
+    // 共享静态资源：把 /shared/assets/* 映射到仓库根的 shared/assets/*
+    publicDir: fileURLToPath(new URL('./public', import.meta.url)),
   }
 })

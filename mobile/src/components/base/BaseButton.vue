@@ -5,7 +5,7 @@ path: src/components/base/BaseButton.vue
 category: base
 purpose: 统一按钮样式与交互（移动端默认更大触控区）
 appliesTo: 通用
-props: type:'primary'|'default'|'text'=default; loading:Boolean=false; disabled:Boolean=false; size:'md'|'lg'='md'
+props: type:'primary'|'default'|'text'=default; loading:Boolean=false; disabled:Boolean=false; size:'sm'|'md'|'lg'='md'
 events: click
 example: <BaseButton type="primary" size="lg" :loading="submitting" @click="onSubmit">登录</BaseButton>
 -->
@@ -40,6 +40,11 @@ defineProps({
   transition: filter 0.15s ease, transform 0.05s ease;
   background: var(--primary-soft);
   color: var(--text);
+}
+.base-btn--sm {
+  padding: 6px 12px;
+  min-height: 32px;
+  font-size: 12px;
 }
 .base-btn--lg {
   padding: 14px 24px;

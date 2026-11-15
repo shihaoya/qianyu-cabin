@@ -1,0 +1,688 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>发放弹窗 · 紧凑优化版</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=ZCOOL+KuaiLe&display=swap');
+
+    :root {
+      --font-display: "ZCOOL KuaiLe", "PingFang SC", system-ui, sans-serif;
+      --bg: #f7f1e3;
+      --surface: #fffdf8;
+      --primary: #c9743b;
+      --primary-soft: #f0dcb8;
+      --text: #3a322a;
+      --muted: #8a7d6b;
+      --radius: 14px;
+      --shadow: 0 6px 20px rgba(120, 90, 50, .12);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+      background: var(--bg);
+      min-height: 100vh;
+      padding: 40px 20px;
+      color: var(--text);
+    }
+
+    .container { max-width: 1200px; margin: 0 auto; }
+
+    .header { text-align: center; margin-bottom: 50px; }
+    .header h1 {
+      font-family: var(--font-display);
+      font-size: 32px;
+      color: var(--primary);
+      margin-bottom: 8px;
+    }
+    .header p { color: var(--muted); font-size: 14px; }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 24px;
+    }
+
+    .demo-card {
+      background: var(--surface);
+      border-radius: 20px;
+      overflow: hidden;
+      box-shadow: var(--shadow);
+      transition: all .3s;
+      cursor: pointer;
+    }
+    .demo-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 12px 40px rgba(120, 90, 50, .2);
+    }
+
+    .preview {
+      height: 340px;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      overflow: hidden;
+    }
+
+    .preview-label {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      padding: 4px 12px;
+      background: rgba(201, 116, 59, .1);
+      border-radius: 999px;
+      font-size: 11px;
+      color: var(--primary);
+      font-weight: 600;
+      z-index: 10;
+    }
+
+    .info { padding: 20px; }
+    .info h3 {
+      font-family: var(--font-display);
+      font-size: 18px;
+      color: var(--text);
+      margin-bottom: 6px;
+    }
+    .info p {
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    /* ========== 通用 ========== */
+    .modal {
+      width: 300px;
+      background: var(--surface);
+      border-radius: 16px;
+      box-shadow: 0 8px 32px rgba(0,0,0,.15);
+      overflow: hidden;
+    }
+    .modal-head {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--primary-soft);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .modal-title {
+      font-family: var(--font-display);
+      font-size: 16px;
+      color: var(--text);
+    }
+    .modal-close {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      border: none;
+      background: var(--primary-soft);
+      color: var(--muted);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+    }
+    .modal-body {
+      padding: 12px 16px;
+    }
+    .modal-foot {
+      padding: 10px 16px;
+      border-top: 1px solid var(--primary-soft);
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+    .btn {
+      padding: 6px 16px;
+      border-radius: 999px;
+      border: none;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    .btn-primary {
+      background: var(--primary);
+      color: #fff;
+    }
+    .btn-text {
+      background: none;
+      color: var(--muted);
+    }
+
+    .fan-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      background: var(--primary-soft);
+      border-radius: 10px;
+      margin-bottom: 12px;
+    }
+    .fan-label { font-size: 12px; color: var(--muted); }
+    .fan-name {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--primary);
+    }
+    .fan-clear {
+      margin-left: auto;
+      font-size: 11px;
+      color: var(--muted);
+      background: none;
+      border: none;
+      cursor: pointer;
+      text-decoration: underline;
+    }
+
+    .benefit-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-bottom: 12px;
+    }
+
+    .reason-section {
+      margin-bottom: 0;
+    }
+    .reason-label {
+      font-size: 11px;
+      color: var(--muted);
+      margin-bottom: 4px;
+    }
+    .reason-input {
+      width: 100%;
+      padding: 8px 12px;
+      border: 1px solid var(--primary-soft);
+      border-radius: 8px;
+      font-size: 12px;
+      background: #fff;
+      outline: none;
+    }
+    .reason-chips {
+      display: flex;
+      gap: 4px;
+      flex-wrap: wrap;
+      margin-top: 6px;
+    }
+    .reason-chip {
+      padding: 3px 8px;
+      border: 1px solid var(--primary-soft);
+      border-radius: 999px;
+      font-size: 10px;
+      color: var(--muted);
+      background: var(--surface);
+      cursor: pointer;
+    }
+
+    /* ========== A 紧凑行 ========== */
+    .a .benefit-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 10px;
+      background: var(--primary-soft);
+      border-radius: 10px;
+    }
+    .a .benefit-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      background: var(--surface);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      flex-shrink: 0;
+    }
+    .a .benefit-info {
+      flex: 1;
+      min-width: 0;
+    }
+    .a .benefit-name {
+      font-size: 13px;
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .a .benefit-count {
+      font-size: 11px;
+      color: var(--muted);
+    }
+    .a .benefit-input {
+      width: 48px;
+      padding: 6px 8px;
+      border: 1px solid rgba(255,255,255,.6);
+      border-radius: 8px;
+      text-align: center;
+      font-size: 13px;
+      font-weight: 600;
+      background: #fff;
+      outline: none;
+      flex-shrink: 0;
+    }
+
+    /* ========== B 迷你卡片 ========== */
+    .b .benefit-list {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    .b .benefit-card {
+      background: var(--primary-soft);
+      border-radius: 10px;
+      padding: 10px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .b .benefit-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 6px;
+      background: var(--surface);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      flex-shrink: 0;
+    }
+    .b .benefit-info {
+      flex: 1;
+      min-width: 0;
+    }
+    .b .benefit-name {
+      font-size: 12px;
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .b .benefit-count {
+      font-size: 10px;
+      color: var(--muted);
+    }
+    .b .benefit-input {
+      width: 40px;
+      padding: 5px 6px;
+      border: 1px solid rgba(255,255,255,.6);
+      border-radius: 6px;
+      text-align: center;
+      font-size: 12px;
+      font-weight: 600;
+      background: #fff;
+      outline: none;
+      flex-shrink: 0;
+    }
+
+    /* ========== C 一行流 ========== */
+    .c .benefit-list {
+      gap: 4px;
+    }
+    .c .benefit-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 8px;
+      background: var(--primary-soft);
+      border-radius: 8px;
+    }
+    .c .benefit-icon {
+      width: 28px;
+      height: 28px;
+      border-radius: 6px;
+      background: var(--surface);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      flex-shrink: 0;
+    }
+    .c .benefit-name {
+      flex: 1;
+      font-size: 12px;
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .c .benefit-count {
+      font-size: 11px;
+      color: var(--muted);
+      font-variant-numeric: tabular-nums;
+    }
+    .c .benefit-input {
+      width: 42px;
+      padding: 5px 6px;
+      border: 1px solid rgba(255,255,255,.6);
+      border-radius: 6px;
+      text-align: center;
+      font-size: 12px;
+      font-weight: 600;
+      background: #fff;
+      outline: none;
+      flex-shrink: 0;
+    }
+
+    /* ========== D 无边框行 ========== */
+    .d .benefit-list {
+      gap: 0;
+    }
+    .d .benefit-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 4px;
+      border-bottom: 1px solid var(--primary-soft);
+    }
+    .d .benefit-row:last-child {
+      border-bottom: none;
+    }
+    .d .benefit-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 6px;
+      background: var(--primary-soft);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      flex-shrink: 0;
+    }
+    .d .benefit-info {
+      flex: 1;
+      min-width: 0;
+    }
+    .d .benefit-name {
+      font-size: 13px;
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .d .benefit-count {
+      font-size: 11px;
+      color: var(--muted);
+    }
+    .d .benefit-input {
+      width: 44px;
+      padding: 5px 8px;
+      border: 1px solid var(--primary-soft);
+      border-radius: 6px;
+      text-align: center;
+      font-size: 12px;
+      font-weight: 600;
+      background: #fff;
+      outline: none;
+      flex-shrink: 0;
+    }
+
+    .footer {
+      text-align: center;
+      margin-top: 60px;
+      padding: 30px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <div class="header">
+      <h1>✦ 发放弹窗 · 紧凑优化版 ✦</h1>
+      <p>基于 V3 列表行优化，更紧凑，点击图片+名字+表单结构</p>
+    </div>
+
+    <div class="grid">
+
+      <!-- A 紧凑行 -->
+      <div class="demo-card" onclick="select('a')">
+        <div class="preview a">
+          <span class="preview-label">A 紧凑行</span>
+          <div class="modal">
+            <div class="modal-head">
+              <span class="modal-title">发放给粉丝</span>
+              <button class="modal-close">✕</button>
+            </div>
+            <div class="modal-body">
+              <div class="fan-row">
+                <span class="fan-label">发放给</span>
+                <span class="fan-name">杨大爷</span>
+                <button class="fan-clear">清除</button>
+              </div>
+              <div class="benefit-list">
+                <div class="benefit-row">
+                  <div class="benefit-icon">🧋</div>
+                  <div class="benefit-info">
+                    <div class="benefit-name">奶茶</div>
+                    <div class="benefit-count">抽中 3</div>
+                  </div>
+                  <input class="benefit-input" value="3">
+                </div>
+                <div class="benefit-row">
+                  <div class="benefit-icon">🎀</div>
+                  <div class="benefit-info">
+                    <div class="benefit-name">徽章</div>
+                    <div class="benefit-count">抽中 2</div>
+                  </div>
+                  <input class="benefit-input" value="2">
+                </div>
+                <div class="benefit-row">
+                  <div class="benefit-icon">🧸</div>
+                  <div class="benefit-info">
+                    <div class="benefit-name">玩偶</div>
+                    <div class="benefit-count">抽中 1</div>
+                  </div>
+                  <input class="benefit-input" value="1">
+                </div>
+              </div>
+              <div class="reason-section">
+                <div class="reason-label">备注（必填）</div>
+                <input class="reason-input" placeholder="如：直播抽奖中奖">
+                <div class="reason-chips">
+                  <span class="reason-chip">开通星守护</span>
+                  <span class="reason-chip">开通会员</span>
+                </div>
+              </div>
+            </div>
+            <div class="modal-foot">
+              <button class="btn btn-text">取消</button>
+              <button class="btn btn-primary">确认发放</button>
+            </div>
+          </div>
+        </div>
+        <div class="info">
+          <h3>A · 紧凑行</h3>
+          <p>每行：图标+名称+数量+输入框，行高紧凑，适合 3-5 种福利</p>
+        </div>
+      </div>
+
+      <!-- B 迷你卡片 -->
+      <div class="demo-card" onclick="select('b')">
+        <div class="preview b">
+          <span class="preview-label">B 迷你卡片</span>
+          <div class="modal">
+            <div class="modal-head">
+              <span class="modal-title">发放给粉丝</span>
+              <button class="modal-close">✕</button>
+            </div>
+            <div class="modal-body">
+              <div class="fan-row">
+                <span class="fan-label">发放给</span>
+                <span class="fan-name">杨大爷</span>
+                <button class="fan-clear">清除</button>
+              </div>
+              <div class="benefit-list">
+                <div class="benefit-card">
+                  <div class="benefit-icon">🧋</div>
+                  <div class="benefit-info">
+                    <div class="benefit-name">奶茶</div>
+                    <div class="benefit-count">×3</div>
+                  </div>
+                  <input class="benefit-input" value="3">
+                </div>
+                <div class="benefit-card">
+                  <div class="benefit-icon">🎀</div>
+                  <div class="benefit-info">
+                    <div class="benefit-name">徽章</div>
+                    <div class="benefit-count">×2</div>
+                  </div>
+                  <input class="benefit-input" value="2">
+                </div>
+                <div class="benefit-card">
+                  <div class="benefit-icon">🧸</div>
+                  <div class="benefit-info">
+                    <div class="benefit-name">玩偶</div>
+                    <div class="benefit-count">×1</div>
+                  </div>
+                  <input class="benefit-input" value="1">
+                </div>
+              </div>
+              <div class="reason-section">
+                <div class="reason-label">备注（必填）</div>
+                <input class="reason-input" placeholder="如：直播抽奖中奖">
+              </div>
+            </div>
+            <div class="modal-foot">
+              <button class="btn btn-text">取消</button>
+              <button class="btn btn-primary">确认发放</button>
+            </div>
+          </div>
+        </div>
+        <div class="info">
+          <h3>B · 迷你卡片</h3>
+          <p>双列迷你卡片，每卡：图标+名称+数量+输入框，适合 2-4 种福利</p>
+        </div>
+      </div>
+
+      <!-- C 一行流 -->
+      <div class="demo-card" onclick="select('c')">
+        <div class="preview c">
+          <span class="preview-label">C 一行流</span>
+          <div class="modal">
+            <div class="modal-head">
+              <span class="modal-title">发放给粉丝</span>
+              <button class="modal-close">✕</button>
+            </div>
+            <div class="modal-body">
+              <div class="fan-row">
+                <span class="fan-label">发放给</span>
+                <span class="fan-name">杨大爷</span>
+                <button class="fan-clear">清除</button>
+              </div>
+              <div class="benefit-list">
+                <div class="benefit-row">
+                  <div class="benefit-icon">🧋</div>
+                  <span class="benefit-name">奶茶</span>
+                  <span class="benefit-count">×3</span>
+                  <input class="benefit-input" value="3">
+                </div>
+                <div class="benefit-row">
+                  <div class="benefit-icon">🎀</div>
+                  <span class="benefit-name">徽章</span>
+                  <span class="benefit-count">×2</span>
+                  <input class="benefit-input" value="2">
+                </div>
+                <div class="benefit-row">
+                  <div class="benefit-icon">🧸</div>
+                  <span class="benefit-name">玩偶</span>
+                  <span class="benefit-count">×1</span>
+                  <input class="benefit-input" value="1">
+                </div>
+              </div>
+              <div class="reason-section">
+                <div class="reason-label">备注（必填）</div>
+                <input class="reason-input" placeholder="如：直播抽奖中奖">
+              </div>
+            </div>
+            <div class="modal-foot">
+              <button class="btn btn-text">取消</button>
+              <button class="btn btn-primary">确认发放</button>
+            </div>
+          </div>
+        </div>
+        <div class="info">
+          <h3>C · 一行流</h3>
+          <p>最极致紧凑，每行只有：图标+名称+数量+输入框，无多余元素</p>
+        </div>
+      </div>
+
+      <!-- D 无边框行 -->
+      <div class="demo-card" onclick="select('d')">
+        <div class="preview d">
+          <span class="preview-label">D 无边框行</span>
+          <div class="modal">
+            <div class="modal-head">
+              <span class="modal-title">发放给粉丝</span>
+              <button class="modal-close">✕</button>
+            </div>
+            <div class="modal-body">
+              <div class="fan-row">
+                <span class="fan-label">发放给</span>
+                <span class="fan-name">杨大爷</span>
+                <button class="fan-clear">清除</button>
+              </div>
+              <div class="benefit-list">
+                <div class="benefit-row">
+                  <div class="benefit-icon">🧋</div>
+                  <div class="benefit-info">
+                    <div class="benefit-name">奶茶</div>
+                    <div class="benefit-count">抽中 3 个</div>
+                  </div>
+                  <input class="benefit-input" value="3">
+                </div>
+                <div class="benefit-row">
+                  <div class="benefit-icon">🎀</div>
+                  <div class="benefit-info">
+                    <div class="benefit-name">徽章</div>
+                    <div class="benefit-count">抽中 2 个</div>
+                  </div>
+                  <input class="benefit-input" value="2">
+                </div>
+                <div class="benefit-row">
+                  <div class="benefit-icon">🧸</div>
+                  <div class="benefit-info">
+                    <div class="benefit-name">玩偶</div>
+                    <div class="benefit-count">抽中 1 个</div>
+                  </div>
+                  <input class="benefit-input" value="1">
+                </div>
+              </div>
+              <div class="reason-section">
+                <div class="reason-label">备注（必填）</div>
+                <input class="reason-input" placeholder="如：直播抽奖中奖">
+              </div>
+            </div>
+            <div class="modal-foot">
+              <button class="btn btn-text">取消</button>
+              <button class="btn btn-primary">确认发放</button>
+            </div>
+          </div>
+        </div>
+        <div class="info">
+          <h3>D · 无边框行</h3>
+          <p>去掉卡片背景，用分隔线区分，最轻量，适合极简风格</p>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="footer">
+      <p>点击卡片选择（A/B/C/D），或告诉我微调点（如"想要 A 但图标再小一点"）</p>
+    </div>
+  </div>
+
+  <script>
+    function select(v) {
+      alert('你选择了 ' + v.toUpperCase() + '，请告诉我，我按这个风格修改正式弹窗')
+    }
+  </script>
+
+</body>
+</html>

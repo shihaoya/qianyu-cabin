@@ -145,16 +145,25 @@ async function onPlay(game) {
           <EntryCard
             tile
             icon="raffle"
-            title="抽奖"
-            desc="抽礼品，可连抽、可指定粉丝"
+            title="直播抽奖"
+            desc="闪礼物抽奖，单抽多抽"
             :to="{ name: 'raffle' }"
           />
           <EntryCard
+            v-if="can(auth.user, CAP.MANAGE_RAFFLE)"
             tile
             icon="raffle"
             title="抽奖管理"
-            desc="维护奖池礼品、权重与库存"
+            desc="维护礼品、权重与库存"
             :to="{ name: 'admin-raffle' }"
+          />
+          <EntryCard
+            v-if="can(auth.user, CAP.MANAGE_FILES)"
+            tile
+            icon="folder"
+            title="文件管理"
+            desc="上传/查看/删除文件，业务模块关联这里的文件"
+            :to="{ name: 'admin-files' }"
           />
         </div>
       </section>

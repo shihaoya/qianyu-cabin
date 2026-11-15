@@ -5,6 +5,7 @@ import { AppError } from '../utils/errors.js'
 import {
   ALLOWED_EXTENSIONS,
   getFileById,
+  listFiles as listFilesService,
   normalizeCategory,
   removeFile,
   resolveStoragePath,
@@ -54,6 +55,11 @@ export async function getFiles(req, res) {
   if (!ids.length) throw new AppError(1001, '请提供文件 id', 400)
   const files = await prisma.uploadedFile.findMany({ where: { id: { in: ids } } })
   sendOk(res, files.map(serializeFile))
+}
+
+// GET /api/files/list?page=&pageSize=&category=  管理端分页列出全部文件
+export async function listFiles(req, res) {
+  sendOk(res, await listFilesService({ page: req.query.page, pageSize: req.query.pageSize, category: req.query.category }))
 }
 
 // GET /api/files/:id/raw  鉴权后流式读取（音频/视频需要 Range 支持）

@@ -5,7 +5,7 @@ path: src/components/base/BaseButton.vue
 category: base
 purpose: 统一按钮样式与交互（主/次/文字、loading、禁用）
 appliesTo: 通用
-props: type:'primary'|'default'|'text'=default; loading:Boolean=false; disabled:Boolean=false
+props: type:'primary'|'default'|'text'=default; loading:Boolean=false; disabled:Boolean=false; size:'sm'|'md'|'lg'='md'
 events: click
 example: <BaseButton type="primary" :loading="submitting" @click="onSubmit">登录</BaseButton>
 -->
@@ -14,13 +14,14 @@ defineProps({
   type: { type: String, default: 'default' },
   loading: { type: Boolean, default: false },
   disabled: { type: Boolean, default: false },
+  size: { type: String, default: 'md' },
 })
 </script>
 
 <template>
   <button
     class="base-btn"
-    :class="[`base-btn--${type}`, { 'is-loading': loading, 'is-disabled': disabled }]"
+    :class="[`base-btn--${type}`, `base-btn--${size}`, { 'is-loading': loading, 'is-disabled': disabled }]"
     :disabled="disabled || loading"
   >
     <span v-if="loading" class="base-btn__spinner" />
@@ -38,6 +39,14 @@ defineProps({
   transition: filter 0.15s ease, transform 0.05s ease;
   background: var(--primary-soft);
   color: var(--text);
+}
+.base-btn--sm {
+  padding: 6px 14px;
+  font-size: 13px;
+}
+.base-btn--lg {
+  padding: 14px 24px;
+  font-size: 16px;
 }
 .base-btn--primary {
   background: var(--primary);

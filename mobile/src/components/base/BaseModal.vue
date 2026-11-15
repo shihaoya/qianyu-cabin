@@ -14,13 +14,18 @@ defineProps({
   title: { type: String, default: '' },
   width: { type: String, default: '480px' },
   sheet: { type: Boolean, default: true },
+  // 弹窗层级：嵌套弹窗时内层传更大的值
+  zIndex: { type: Number, default: 1000 },
 })
 const emit = defineEmits(['close'])
 </script>
 
 <template>
   <!-- 遮罩本身不响应点击：避免误触关闭导致未保存内容丢失，只能点右上角 ✕ -->
-  <div class="bm-wrap">
+  <div
+    class="bm-wrap"
+    :style="{ zIndex }"
+  >
     <div
       class="bm-panel"
       :class="{ 'bm-panel--sheet': sheet }"

@@ -8,7 +8,7 @@ import CabinLogo from '../components/base/CabinLogo.vue'
 import CabinScene from '../components/base/CabinScene.vue'
 import BaseButton from '../components/base/BaseButton.vue'
 import EntryCard from '../components/base/EntryCard.vue'
-import { alert, confirm } from '../composables/useConfirm.js'
+import { confirm } from '../composables/useConfirm.js'
 import TabBar from '../components/base/TabBar.vue'
 
 const router = useRouter()
@@ -150,31 +150,23 @@ function onLogout() {
             desc="维护福利类型与粉丝的卡"
             :to="{ name: 'admin-benefits' }"
           />
-        </div>
-      </section>
-
-      <section
-        v-if="can(auth.user, CAP.MANAGE_RAFFLE)"
-        class="block qy-rise"
-        style="animation-delay:.17s"
-      >
-        <div class="block__head">
-          <h2 class="block__title">
-            抽奖区
-          </h2>
-          <p class="block__sub">
-            直播抽奖小工具
-          </p>
-        </div>
-        <div class="interact">
           <EntryCard
+            v-if="can(auth.user, CAP.MANAGE_FILES)"
+            icon="folder"
+            title="文件管理"
+            desc="上传/查看/删除文件，业务模块关联这里的文件"
+            :to="{ name: 'admin-files' }"
+          />
+          <EntryCard
+            v-if="can(auth.user, CAP.MANAGE_RAFFLE)"
             icon="raffle"
-            title="抽奖"
-            desc="抽礼品，可连抽、可指定粉丝"
+            title="直播抽奖"
+            desc="闪礼物抽奖，单抽多抽，可发福利"
             :to="{ name: 'raffle' }"
           />
           <EntryCard
-            icon="settings"
+            v-if="can(auth.user, CAP.MANAGE_RAFFLE)"
+            icon="raffle"
             title="抽奖管理"
             desc="维护礼品、权重与库存"
             :to="{ name: 'admin-raffle' }"

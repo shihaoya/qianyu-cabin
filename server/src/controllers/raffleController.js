@@ -25,7 +25,7 @@ export async function deletePrize(req, res) {
   return sendOk(res, result)
 }
 
-// 抽奖：count 次连抽，可选 fanId 指定中奖粉丝
+// 抽奖：count 次连抽，可选 fanId 指定抽奖粉丝
 export async function postDraw(req, res) {
   const { count, fanId } = req.body || {}
   const records = await draw({ count, fanId, operator: req.user })
