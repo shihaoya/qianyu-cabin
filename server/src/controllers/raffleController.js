@@ -1,4 +1,4 @@
-import { listPrizes, createPrize, updatePrize, removePrize, draw, listRecords } from '../services/raffleService.js'
+import { listPrizes, createPrize, updatePrize, removePrize, draw, listRecords, selfDraw, listSelfDrawRecords } from '../services/raffleService.js'
 import { sendOk } from '../utils/response.js'
 
 export async function getPrizes(req, res) {
@@ -25,7 +25,7 @@ export async function deletePrize(req, res) {
   return sendOk(res, result)
 }
 
-// 抽奖：count 次连抽，可选 fanId 指定抽奖粉丝
+// 抽奖：count 次连抽，可选 fanId 指定抽奖粉丝（主播操作）
 export async function postDraw(req, res) {
   const { count, fanId } = req.body || {}
   const records = await draw({ count, fanId, operator: req.user })
@@ -35,6 +35,28 @@ export async function postDraw(req, res) {
 export async function getRecords(req, res) {
   const page = Math.max(1, Number(req.query.page) || 1)
   const pageSize = Math.min(50, Math.max(1, Number(req.query.pageSize) || 20))
-  const { list, total } = await listRecords({ page, pageSize, prizeId: req.query.prizeId, fanId: req.query.fanId })
+  const { list, total } = await listRecords({
+    page,
+    pageSize,
+    prizeId: req.query.prizeId,
+    fanId: req.query.fanId,
+    keyword: req.query.keyword,
+    drawnBy: req.query.drawnBy,
+  })
+  return sendOk(res, { list, total, page, pageSize })
+}
+
+// 粉丝自助抽奖：通过绑定的站内账号反查粉丝档案
+export async function postSelfDraw(req, res) {
+  const { count } = req.body || {}
+  const records = await selfDraw({ userId: req.user.id, count, operator: req.user })
+  return sendOk(res, { records })
+}
+
+// 粉丝自助抽奖的历史记录（只含自己抽的）
+export async function getSelfDrawRecords(req, res) {
+  const page = Math.max(1, Number(req.query.page) || 1)
+  const pageSize = Math.min(50, Math.max(1, Number(req.query.pageSize) || 20))
+  const { list, total } = await listSelfDrawRecords({ userId: req.user.id, page, pageSize })
   return sendOk(res, { list, total, page, pageSize })
 }

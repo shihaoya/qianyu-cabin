@@ -44,6 +44,12 @@ const routes = [
     component: () => import('../views/Raffle.vue'),
   },
   {
+    path: '/my-draw',
+    name: 'my-draw',
+    meta: { auth: true },
+    component: () => import('../views/MyDraw.vue'),
+  },
+  {
     path: '/icon-studio',
     name: 'icon-studio',
     meta: { cap: CAP.OWNER_TOOLS },

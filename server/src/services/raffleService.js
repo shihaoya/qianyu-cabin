@@ -24,6 +24,7 @@ const RECORD_SELECT = {
   fanNickname: true,
   operatorId: true,
   operatorName: true,
+  drawnBy: true,
   createdAt: true,
 }
 
@@ -52,9 +53,18 @@ function normalizeStock(stock) {
 }
 
 // 礼品列表：附带实时中奖率（基于当前可用奖池），图片信息用二次查询拼接
+// 内置"抽奖次数"对应的礼品不返回给前端（不参与奖池展示与抽奖）
 export async function listPrizes() {
+  // 找出 isDrawCount 类型的 id，用于过滤
+  const drawCountType = await prisma.benefitType.findFirst({ where: { isDrawCount: true }, select: { id: true } })
+  const drawCountTypeId = drawCountType?.id
+
   const [prizes, files] = await Promise.all([
-    prisma.rafflePrize.findMany({ orderBy: { id: 'asc' }, select: PRIZE_SELECT }),
+    prisma.rafflePrize.findMany({
+      orderBy: { id: 'asc' },
+      select: PRIZE_SELECT,
+      where: drawCountTypeId ? { benefitTypeId: { not: drawCountTypeId } } : {},
+    }),
     prisma.uploadedFile.findMany({
       where: { category: 'raffle-prize' },
       select: { id: true, originalName: true, mimeType: true },
@@ -146,8 +156,12 @@ export async function removePrize(id) {
 }
 
 // 单次抽取：在当前可用奖池中按权重随机选一个
-async function pickOne(tx) {
-  const pool = await tx.rafflePrize.findMany({ where: availableWhere(), select: PRIZE_SELECT })
+// 排除内置"抽奖次数"对应的礼品（不参与任何抽奖）
+async function pickOne(tx, drawCountTypeId) {
+  const where = availableWhere()
+  if (drawCountTypeId) where.benefitTypeId = { not: drawCountTypeId }
+
+  const pool = await tx.rafflePrize.findMany({ where, select: PRIZE_SELECT })
   const totalWeight = pool.reduce((sum, p) => sum + p.weight, 0)
   if (!pool.length || totalWeight <= 0) throw ERR.NO_AVAILABLE_PRIZE()
 
@@ -161,9 +175,10 @@ async function pickOne(tx) {
 
 // 抽奖：count 次连抽；可选指定粉丝（fanId）；每次抽取在事务内完成
 // 「选礼品 → 扣库存（-1 不扣）→ 写记录」三步原子提交， stock=0 的礼品在事务内自然出局
-export async function draw({ count, fanId, operator }) {
+// drawnBy："host" 主播帮抽 | "self" 粉丝自助抽（self 时自动扣减抽奖次数卡）
+export async function draw({ count, fanId, operator, drawnBy = 'host' }) {
   const n = Number(count)
-  if (!Number.isInteger(n) || n < 1 || n > 100) throw ERR.DRAW_COUNT_INVALID()
+  if (!Number.isInteger(n) || n < 1 || n > 999) throw ERR.DRAW_COUNT_INVALID()
 
   let fan = null
   if (fanId !== undefined && fanId !== null && fanId !== '') {
@@ -173,23 +188,58 @@ export async function draw({ count, fanId, operator }) {
     if (!fan) throw ERR.FAN_NOT_FOUND()
   }
 
+  // 粉丝自助抽：校验并扣减抽奖次数
+  let drawCountType = null
+  if (drawnBy === 'self') {
+    if (!fan) throw ERR.PARAM('自助抽奖需要先绑定粉丝档案')
+    drawCountType = await prisma.benefitType.findFirst({ where: { isDrawCount: true } })
+    if (!drawCountType) throw ERR.PARAM('系统未配置抽奖次数类型，请联系管理员')
+    const held = await prisma.fanBenefit.findUnique({
+      where: { fanId_typeId: { fanId: fan.id, typeId: drawCountType.id } },
+    })
+    if (!held || held.amount < n) {
+      throw ERR.BENEFIT_NOT_ENOUGH(
+        `抽奖次数不足，当前剩余 ${held?.amount || 0} 次，需要 ${n} 次`,
+      )
+    }
+  }
+
+  // 主播抽也需要排除抽奖次数类型的礼品，统一查一次
+  const drawCountTypeId = drawCountType ? drawCountType.id : (await prisma.benefitType.findFirst({ where: { isDrawCount: true }, select: { id: true } }))?.id
+
   return prisma.$transaction(async (tx) => {
+    // 先扣抽奖次数
+    if (drawnBy === 'self' && drawCountType) {
+      await adjustFanCardTx({
+        fanId: fan.id,
+        typeId: drawCountType.id,
+        delta: -n,
+        reason: `自助抽奖消耗 ${n} 次`,
+        operator,
+        tx,
+      })
+    }
+
     const results = []
     for (let i = 0; i < n; i += 1) {
-      const prize = await pickOne(tx)
+      const prize = await pickOne(tx, drawCountTypeId)
       if (prize.stock !== -1) {
         await tx.rafflePrize.update({ where: { id: prize.id }, data: { stock: { decrement: 1 } } })
       }
       // 系统自带礼品（关联福利类型）且指定了粉丝时，自动给该粉丝计入对应类型的卡
+      // 但粉丝自抽时，如果抽中的是"抽奖次数"类型本身，不再加回（避免白抽循环）
       if (fan && prize.benefitTypeId != null) {
-        await adjustFanCardTx({
-          fanId: fan.id,
-          typeId: prize.benefitTypeId,
-          delta: 1,
-          reason: `抽奖获得：${prize.name}`,
-          operator,
-          tx,
-        })
+        const isDrawCountPrize = drawnBy === 'self' && drawCountType && prize.benefitTypeId === drawCountType.id
+        if (!isDrawCountPrize) {
+          await adjustFanCardTx({
+            fanId: fan.id,
+            typeId: prize.benefitTypeId,
+            delta: 1,
+            reason: `抽奖获得：${prize.name}`,
+            operator,
+            tx,
+          })
+        }
       }
       const record = await tx.raffleRecord.create({
         data: {
@@ -199,6 +249,7 @@ export async function draw({ count, fanId, operator }) {
           fanNickname: fan ? fan.nickname : null,
           operatorId: operator ? operator.id : null,
           operatorName: operator ? operator.nickname : null,
+          drawnBy,
         },
         select: RECORD_SELECT,
       })
@@ -208,8 +259,8 @@ export async function draw({ count, fanId, operator }) {
   })
 }
 
-// 抽奖记录：倒序分页，可按礼品或粉丝过滤
-export async function listRecords({ page = 1, pageSize = 20, prizeId, fanId } = {}) {
+// 抽奖记录：倒序分页，可按礼品、粉丝、昵称关键字、drawnBy 过滤
+export async function listRecords({ page = 1, pageSize = 20, prizeId, fanId, keyword, drawnBy } = {}) {
   const where = {}
   if (prizeId !== undefined && prizeId !== null && prizeId !== '') {
     const pid = Number(prizeId)
@@ -219,6 +270,10 @@ export async function listRecords({ page = 1, pageSize = 20, prizeId, fanId } = 
     const fid = Number(fanId)
     if (Number.isInteger(fid)) where.fanId = fid
   }
+  // 按粉丝昵称模糊搜索（快照字段，粉丝被删后仍可搜到历史记录）
+  const kw = (keyword || '').trim()
+  if (kw) where.fanNickname = { contains: kw }
+  if (drawnBy === 'host' || drawnBy === 'self') where.drawnBy = drawnBy
 
   const [total, list] = await Promise.all([
     prisma.raffleRecord.count({ where }),
@@ -268,4 +323,21 @@ export async function syncBenefitTypeRename(tx, typeId, newName) {
 // 福利类型删除时，同步移除对应的系统自带礼品（历史抽奖记录靠快照保留，不受影响）
 export async function syncBenefitTypeRemove(tx, typeId) {
   await tx.rafflePrize.deleteMany({ where: { benefitTypeId: typeId } })
+}
+
+// 粉丝自助抽奖：通过绑定的站内账号反查粉丝档案，校验并扣减抽奖次数，返回抽奖记录
+// 次数上限由 draw 里的 9999 限制 + 实际剩余次数校验双重控制
+export async function selfDraw({ userId, count = 1, operator }) {
+  const fan = await prisma.fan.findFirst({ where: { userId }, select: { id: true, nickname: true } })
+  if (!fan) throw ERR.PARAM('未绑定粉丝档案，无法抽奖')
+  const n = Number(count)
+  if (!Number.isInteger(n) || n < 1) throw ERR.DRAW_COUNT_INVALID()
+  return draw({ count: n, fanId: fan.id, operator, drawnBy: 'self' })
+}
+
+// 粉丝自助抽奖的历史记录（只含 drawnBy: self），通过绑定的站内账号反查
+export async function listSelfDrawRecords({ userId, page = 1, pageSize = 20 } = {}) {
+  const fan = await prisma.fan.findFirst({ where: { userId }, select: { id: true } })
+  if (!fan) return { list: [], total: 0 }
+  return listRecords({ page, pageSize, fanId: fan.id, drawnBy: 'self' })
 }

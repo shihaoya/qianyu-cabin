@@ -111,6 +111,13 @@ async function onPlay(game) {
             desc="查看发放给我的卡"
             :to="{ name: 'my-benefits' }"
           />
+          <EntryCard
+            tile
+            icon="raffle"
+            title="我的抽奖"
+            desc="用抽奖次数给自己抽福利"
+            :to="{ name: 'my-draw' }"
+          />
         </div>
       </section>
 

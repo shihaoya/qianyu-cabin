@@ -100,6 +100,30 @@ Props 必须声明类型；跨组件通信优先 props / emits，跨页面状态
 - **遮罩不关闭弹窗**：弹框只能点标题区右上角的 ✕ 关闭按钮（或内部的取消/确定等明确按钮）关闭，**点击遮罩层、按 Esc 都不关闭**——避免误触导致未保存内容丢失。
 - 弹窗外壳统一用 `components/base/BaseModal.vue`（居中），确认框用 `ConfirmDialog.vue`；二者都自带右上角关闭按钮，新弹窗不要自己再写一套遮罩。
 
+### 分页方案（通用）
+
+- **列表分页统一用 `usePagination` composable**（`composables/usePagination.js`）：管理页码、列表数据、总数、加载状态，用法：
+  ```js
+  const pager = usePagination(fetchFn, { pageSize: 10 })
+  await pager.load(1)   // 加载指定页
+  pager.next()          // 下一页
+  pager.prev()          // 上一页
+  pager.reload()        // 回第一页
+  ```
+  模板里用 `pager.list.value`、`pager.page.value`、`pager.totalPages.value` 绑定。
+- **分页控制条统一用 `BasePager` 组件**（`components/base/BasePager.vue`）：上一页/下一页 + 页码信息，配合 `usePagination` 使用：
+  ```html
+  <BasePager
+    :page="pager.page.value"
+    :total-pages="pager.totalPages.value"
+    :disabled="pager.loading.value"
+    @prev="pager.prev"
+    @next="pager.next"
+  />
+  ```
+- **大量数据渲染要分页或虚拟滚动**：单次渲染超过 ~100 个卡片/行会卡顿，必须分页（如抽奖结果区分页显示）。
+- 接口返回结构统一 `{ list, total, page }`，`usePagination` 依赖此结构。
+
 ### 管理页布局约定：左列表 + 右详情
 
 - 管理类页面（如 `views/AdminBenefits.vue`）用**左侧窄列表 + 右侧详情区**：左边只放标识与关键数字（可滚动，人数再多也不拉长页面），右边放选中项的完整信息与操作。

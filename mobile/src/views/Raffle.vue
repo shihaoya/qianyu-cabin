@@ -3,7 +3,7 @@ import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { listPrizes, drawRaffle } from '../api/raffles.js'
 import { listBenefitTypes, listFans, adjustFanCardsBatch, listReasons } from '../api/benefits.js'
 import { fetchFileObjectURL } from '../api/files.js'
-import { PRIZE_FALLBACK_EMOJI, QUICK_DRAW_COUNTS, MAX_BATCH_COUNT } from '@cabin/raffle.js'
+import { prizeIconText, QUICK_DRAW_COUNTS, MAX_BATCH_COUNT } from '@cabin/raffle.js'
 import mascotUrl from '@cabin/assets/qycj.png'
 import AppHeader from '../components/base/AppHeader.vue'
 import BaseButton from '../components/base/BaseButton.vue'
@@ -29,6 +29,17 @@ const drawing = ref(false) // 正在旋转闪烁中（可停止）
 const drawingRequest = ref(false) // 正在请求后端
 const drawError = ref('')
 const currentResults = ref([]) // 累积的抽奖结果列表
+// 结果区分页显示（防止一次渲染过多导致卡顿）
+const RESULTS_PAGE_SIZE = 100
+const resultsPage = ref(1)
+const displayedResults = computed(() => {
+  const start = (resultsPage.value - 1) * RESULTS_PAGE_SIZE
+  const slice = currentResults.value.slice(start, start + RESULTS_PAGE_SIZE)
+  return slice.map((r, i) => ({ ...r, _idx: start + i }))
+})
+const resultsTotalPages = computed(() =>
+  Math.ceil(currentResults.value.length / RESULTS_PAGE_SIZE),
+)
 
 // ---------- 中央闪烁礼物 ----------
 const flashing = ref(false)
@@ -38,9 +49,14 @@ let flashTimer = null
 function startFlash() {
   stopFlash()
   flashing.value = true
+  // 闪烁时随机显示可用奖池里的奖品
   flashTimer = setInterval(() => {
-    const random = availablePrizes.value[Math.floor(Math.random() * availablePrizes.value.length)]
-    flashPrize.value = random
+    const pool = availablePrizes.value
+    if (!pool.length) {
+      flashPrize.value = { name: '???', imageFileId: null }
+      return
+    }
+    flashPrize.value = pool[Math.floor(Math.random() * pool.length)]
   }, 80)
 }
 
@@ -171,6 +187,7 @@ async function stopDraw() {
       return { ...prize, recordId: r.id, fanNickname: r.fanNickname }
     }).filter(Boolean)
     currentResults.value = [...currentResults.value, ...newResults]
+    resultsPage.value = 1 // 新结果回到第一页
     startConfetti()
     await loadPrizes()
   } catch (e) {
@@ -337,12 +354,6 @@ onMounted(async () => {
           <p class="hero__eyebrow">
             ✦ 千羽的小屋 · 直播抽奖 ✦
           </p>
-          <h1 class="hero__title">
-            小屋抽奖夜
-          </h1>
-          <p class="hero__sub">
-            当前奖池共 {{ availablePrizes.length }} 种礼品
-          </p>
           <p
             v-if="error"
             class="rl-error"
@@ -360,16 +371,22 @@ onMounted(async () => {
           >
             <div class="gift-box__inner">
               <img
-                v-if="flashPrize?.imageFileId && imageUrls.get(flashPrize.imageFileId)"
+                v-if="flashing && flashPrize?.imageFileId && imageUrls.get(flashPrize.imageFileId)"
                 :src="imageUrls.get(flashPrize.imageFileId)"
                 :alt="flashPrize.name"
+                class="gift-box__img"
+              >
+              <img
+                v-else-if="!flashing && currentResults[currentResults.length - 1]?.imageFileId && imageUrls.get(currentResults[currentResults.length - 1].imageFileId)"
+                :src="imageUrls.get(currentResults[currentResults.length - 1].imageFileId)"
+                :alt="currentResults[currentResults.length - 1].name"
                 class="gift-box__img"
               >
               <span
                 v-else
                 class="gift-box__emoji"
-              >{{ PRIZE_FALLBACK_EMOJI }}</span>
-              <span class="gift-box__name">{{ flashing ? flashPrize?.name || '???' : (currentResults[0]?.name || '???') }}</span>
+              >{{ flashing ? prizeIconText(flashPrize?.name) : prizeIconText(currentResults[currentResults.length - 1]?.name) }}</span>
+              <span class="gift-box__name">{{ flashing ? (flashPrize?.name || '???') : (currentResults[currentResults.length - 1]?.name || '???') }}</span>
             </div>
           </div>
         </div>
@@ -465,10 +482,10 @@ onMounted(async () => {
             <div class="result-scroll">
               <div class="result-grid">
                 <div
-                  v-for="(r, i) in currentResults"
-                  :key="r.recordId || i"
+                  v-for="r in displayedResults"
+                  :key="r.recordId || r._idx"
                   class="result-cell"
-                  :style="{ animationDelay: `${i * 0.05}s` }"
+                  :style="{ animationDelay: `${(r._idx % RESULTS_PAGE_SIZE) * 0.03}s` }"
                 >
                   <img
                     v-if="r.imageFileId && imageUrls.get(r.imageFileId)"
@@ -478,10 +495,31 @@ onMounted(async () => {
                   >
                   <span
                     v-else
-                    class="result-cell__emoji"
-                  >{{ PRIZE_FALLBACK_EMOJI }}</span>
+                    class="result-cell__char"
+                  >{{ prizeIconText(r.name) }}</span>
                   <span class="result-cell__name">{{ r.name }}</span>
                 </div>
+              </div>
+              <!-- 结果过多时分页显示 -->
+              <div
+                v-if="currentResults.length > RESULTS_PAGE_SIZE"
+                class="result-pager"
+              >
+                <button
+                  type="button"
+                  :disabled="resultsPage <= 1"
+                  @click="resultsPage--"
+                >
+                  上一页
+                </button>
+                <span>{{ resultsPage }} / {{ resultsTotalPages }}</span>
+                <button
+                  type="button"
+                  :disabled="resultsPage >= resultsTotalPages"
+                  @click="resultsPage++"
+                >
+                  下一页
+                </button>
               </div>
             </div>
           </div>
@@ -535,7 +573,7 @@ onMounted(async () => {
               :key="row.typeId"
               class="grant-card"
             >
-              <div class="grant-card__icon">🎁</div>
+              <div class="grant-card__icon">{{ prizeIconText(row.typeName) }}</div>
               <div class="grant-card__info">
                 <div class="grant-card__name">{{ row.typeName }}</div>
                 <div class="grant-card__count">×{{ row.count }}</div>
@@ -1020,17 +1058,29 @@ onMounted(async () => {
 }
 
 .result-cell__img {
-  width: 28px;
-  height: 28px;
+  width: 20px;
+  height: 20px;
   object-fit: contain;
 }
 
-.result-cell__emoji {
-  font-size: 22px;
+/* 无图时用名称首字做图标，深底白字和格子背景区分 */
+.result-cell__char {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--primary);
+  color: #fff;
+  font-family: var(--font-display);
+  font-size: 11px;
+  line-height: 1;
 }
 
 .result-cell__name {
-  font-size: 9px;
+  font-size: 8px;
   color: var(--text);
   font-weight: 600;
 }

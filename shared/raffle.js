@@ -4,8 +4,14 @@
 // 奖品无图片时的默认占位图标
 export const PRIZE_FALLBACK_EMOJI = '🎁'
 
+// 奖品无图片时用名称第一个字做图标，方便区分不同奖品
+export function prizeIconText(name) {
+  const n = (name || '').trim()
+  return n ? n[0] : PRIZE_FALLBACK_EMOJI
+}
+
 // 快捷抽数选项
 export const QUICK_DRAW_COUNTS = [1, 5, 10, 20, 50]
 
-// 批量自定义次数上限
-export const MAX_BATCH_COUNT = 1000
+// 单次抽奖次数上限（防止一次抽太多导致超时/内存问题）
+export const MAX_BATCH_COUNT = 999

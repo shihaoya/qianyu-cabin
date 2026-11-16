@@ -12,11 +12,13 @@ const TYPE_SELECT = {
   id: true,
   name: true,
   description: true,
+  isDrawCount: true,
   createdAt: true,
 }
 
 // 列表附带 holderCount（持有该类型且数量 > 0 的粉丝数），供前端判断能否删除
 export async function listTypes() {
+  await ensureDrawCountType()
   const [types, held] = await Promise.all([
     prisma.benefitType.findMany({ orderBy: { id: 'asc' }, select: TYPE_SELECT }),
     prisma.fanBenefit.groupBy({
@@ -29,7 +31,27 @@ export async function listTypes() {
   return types.map((t) => ({ ...t, holderCount: countMap.get(t.id) || 0 }))
 }
 
-export async function createType({ name, description }) {
+// 内置抽奖次数类型：全局唯一，不存在时自动创建；不可删除、不可取消 isDrawCount
+export async function ensureDrawCountType() {
+  const existing = await prisma.benefitType.findFirst({ where: { isDrawCount: true } })
+  if (existing) return existing
+  // 创建内置类型 + 同步奖池礼品（默认停用）
+  return prisma.$transaction(async (tx) => {
+    const created = await tx.benefitType.create({
+      data: { name: '抽奖次数', isDrawCount: true, description: '粉丝自助抽奖时自动扣减' },
+      select: TYPE_SELECT,
+    })
+    await tx.rafflePrize.create({
+      data: { name: '抽奖次数', benefitTypeId: created.id, enabled: false, weight: 1, stock: -1 },
+    })
+    return created
+  })
+}
+
+export async function createType({ name, description, isDrawCount }) {
+  // 抽奖次数类型是内置的，不允许手动创建
+  if (isDrawCount) throw ERR.PARAM('抽奖次数类型是系统内置的，不能手动创建')
+
   const typeName = (name || '').trim()
   if (!typeName) throw ERR.PARAM('类型名称不能为空')
   if (typeName.length > 20) throw ERR.PARAM('类型名称不超过 20 字')
@@ -43,7 +65,7 @@ export async function createType({ name, description }) {
   // 创建类型时同步在奖池里生成一条系统自带礼品（默认停用，由管理员手动开启）
   return prisma.$transaction(async (tx) => {
     const created = await tx.benefitType.create({
-      data: { name: typeName, description: desc },
+      data: { name: typeName, description: desc, isDrawCount: false },
       select: TYPE_SELECT,
     })
     await syncFromBenefitType(tx, created)
@@ -51,7 +73,7 @@ export async function createType({ name, description }) {
   })
 }
 
-export async function updateType(id, { name, description }) {
+export async function updateType(id, { name, description, isDrawCount }) {
   const current = await prisma.benefitType.findUnique({ where: { id } })
   if (!current) throw ERR.TYPE_NOT_FOUND()
 
@@ -76,6 +98,10 @@ export async function updateType(id, { name, description }) {
     if (desc && desc.length > 100) throw ERR.PARAM('类型说明不超过 100 字')
     data.description = desc
   }
+  // 内置抽奖次数类型：isDrawCount 不可修改（永远是 true），名字和说明可以改
+  if (isDrawCount !== undefined && !current.isDrawCount && isDrawCount) {
+    throw ERR.PARAM('抽奖次数类型是系统内置的，不能将其他类型改为抽奖次数')
+  }
 
   return prisma.$transaction(async (tx) => {
     const updated = await tx.benefitType.update({ where: { id }, data, select: TYPE_SELECT })
@@ -88,9 +114,11 @@ export async function updateType(id, { name, description }) {
 
 // 删除规则：只要还有粉丝持有该类型的卡（amount > 0）就拒绝删除；
 // 数量为 0 的残留记录随类型一起清理，避免留下孤儿数据
+// 内置抽奖次数类型不可删除
 export async function removeType(id) {
   const current = await prisma.benefitType.findUnique({ where: { id } })
   if (!current) throw ERR.TYPE_NOT_FOUND()
+  if (current.isDrawCount) throw ERR.PARAM('抽奖次数类型是系统内置的，不能删除')
 
   const held = await prisma.fanBenefit.count({ where: { typeId: id, amount: { gt: 0 } } })
   if (held > 0) throw ERR.TYPE_IN_USE()

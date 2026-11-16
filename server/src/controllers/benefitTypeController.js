@@ -8,16 +8,16 @@ export async function getTypes(req, res) {
 }
 
 export async function postType(req, res) {
-  const { name, description } = req.body || {}
-  const type = await createType({ name, description })
+  const { name, description, isDrawCount } = req.body || {}
+  const type = await createType({ name, description, isDrawCount })
   return sendOk(res, { type })
 }
 
 export async function patchType(req, res) {
   const id = Number(req.params.id)
   if (!Number.isInteger(id)) throw ERR.TYPE_NOT_FOUND()
-  const { name, description } = req.body || {}
-  const type = await updateType(id, { name, description })
+  const { name, description, isDrawCount } = req.body || {}
+  const type = await updateType(id, { name, description, isDrawCount })
   return sendOk(res, { type })
 }
 

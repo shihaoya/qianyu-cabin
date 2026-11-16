@@ -146,7 +146,7 @@ export async function listFanCards(fanId) {
   const [types, benefits] = await Promise.all([
     prisma.benefitType.findMany({
       orderBy: { id: 'asc' },
-      select: { id: true, name: true, description: true },
+      select: { id: true, name: true, description: true, isDrawCount: true },
     }),
     prisma.fanBenefit.findMany({ where: { fanId }, select: { typeId: true, amount: true } }),
   ])
@@ -155,6 +155,7 @@ export async function listFanCards(fanId) {
     typeId: t.id,
     typeName: t.name,
     description: t.description,
+    isDrawCount: t.isDrawCount,
     amount: amountMap.get(t.id) || 0,
   }))
   return { fan, cards }

@@ -49,6 +49,7 @@ const recordsTotal = ref(0)
 const recordsPage = ref(1)
 const recordsLoading = ref(false)
 const recordsError = ref('')
+const recordsKeyword = ref('')
 const RECORDS_PAGE_SIZE = 20
 
 // ---------- 图片 ObjectURL 缓存（组件销毁时统一 revoke） ----------
@@ -190,7 +191,7 @@ async function loadRecords(page = 1) {
   recordsLoading.value = true
   recordsError.value = ''
   try {
-    const data = await listRaffleRecords({ page, pageSize: RECORDS_PAGE_SIZE })
+    const data = await listRaffleRecords({ page, pageSize: RECORDS_PAGE_SIZE, keyword: recordsKeyword.value })
     records.value = data.list || []
     recordsTotal.value = data.total || 0
     recordsPage.value = data.page || 1
@@ -203,7 +204,12 @@ async function loadRecords(page = 1) {
 
 function openRecords() {
   showRecords.value = true
+  recordsKeyword.value = ''
   records.value = []
+  loadRecords(1)
+}
+
+function searchRecords() {
   loadRecords(1)
 }
 
@@ -455,8 +461,26 @@ onMounted(loadPrizes)
       <BaseModal
         v-if="showRecords"
         title="抽奖记录"
+        width="560px"
         @close="showRecords = false"
       >
+        <!-- 按粉丝昵称搜索 -->
+        <div class="rp-records-search">
+          <input
+            v-model="recordsKeyword"
+            class="rp-records-search__input"
+            placeholder="搜索粉丝昵称…"
+            @keyup.enter="searchRecords"
+          >
+          <BaseButton
+            type="default"
+            size="sm"
+            @click="searchRecords"
+          >
+            搜索
+          </BaseButton>
+        </div>
+
         <p
           v-if="recordsError"
           class="rp-error"
@@ -473,7 +497,7 @@ onMounted(loadPrizes)
           v-else-if="!records.length"
           class="rp-empty"
         >
-          还没有抽奖记录。
+          {{ recordsKeyword ? '没有匹配的记录' : '还没有抽奖记录。' }}
         </p>
         <template v-else>
           <ul class="rp-records">
@@ -484,6 +508,10 @@ onMounted(loadPrizes)
             >
               <span class="rp-record__prize">{{ record.prizeName }}</span>
               <span class="rp-record__fan">{{ record.fanNickname || '未指定粉丝' }}</span>
+              <span
+                v-if="record.drawnBy === 'self'"
+                class="rp-record__badge"
+              >自抽</span>
               <span class="rp-record__time">{{ fmtTime(record.createdAt) }}</span>
             </li>
           </ul>
@@ -869,9 +897,38 @@ onMounted(loadPrizes)
 .rp-record__fan {
   color: var(--muted);
 }
+.rp-record__badge {
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(91, 140, 123, .12);
+  color: var(--accent);
+  font-weight: 500;
+  flex-shrink: 0;
+}
 .rp-record__time {
   color: var(--muted);
   font-variant-numeric: tabular-nums;
+}
+
+/* 记录搜索框 */
+.rp-records-search {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.rp-records-search__input {
+  flex: 1;
+  padding: 8px 14px;
+  border: 1px solid var(--primary-soft);
+  border-radius: 999px;
+  font-size: 13px;
+  color: var(--text);
+  background: var(--surface);
+  outline: none;
+}
+.rp-records-search__input:focus {
+  border-color: var(--primary);
 }
 .rp-pager {
   display: flex;

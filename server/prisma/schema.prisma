@@ -53,10 +53,12 @@ model GameRecord {
 }
 
 // 福利类型：由管理员维护的卡种（如「加班卡」「减班卡」）。被粉丝持有时不可删除
+// isDrawCount：标记为「抽奖次数」类型，粉丝自助抽奖时自动扣减，主播端显示扣除记录
 model BenefitType {
   id          Int      @id @default(autoincrement())
   name        String   @unique
   description String?
+  isDrawCount Boolean  @default(false)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }
@@ -146,6 +148,7 @@ model RafflePrize {
 }
 
 // 抽奖记录：只增不改不删，存礼品名/粉丝名快照，礼品或粉丝被删后记录仍可读
+// drawnBy："host" 主播帮抽 | "self" 粉丝自助抽（粉丝端只显示 self）
 model RaffleRecord {
   id           Int      @id @default(autoincrement())
   prizeId      Int
@@ -154,7 +157,9 @@ model RaffleRecord {
   fanNickname  String?  // 粉丝昵称快照
   operatorId   Int?     // 操作人（User.id）
   operatorName String?
+  drawnBy      String   @default("host")
   createdAt    DateTime @default(now())
   @@index([prizeId, createdAt])
   @@index([fanId, createdAt])
+  @@index([drawnBy, createdAt])
 }

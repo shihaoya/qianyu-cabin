@@ -13,6 +13,7 @@ import meRoutes from './routes/me.js'
 import { errorHandler } from './middleware/error.js'
 import { requestLog } from './middleware/requestLog.js'
 import { log } from './utils/logger.js'
+import { ensureDrawCountType } from './services/benefitTypeService.js'
 
 // 进程级异常捕获：请求链路之外的崩溃（uncaughtException）或后台 Promise 拒绝（unhandledRejection）
 // 也必须留痕，否则进程悄无声息地挂掉 / 重启，完全无法排查。记录后退出，交由 pm2/systemd 重新拉起。
@@ -40,6 +41,13 @@ app.use('/api/files', fileRoutes)
 app.use('/api/raffles', raffleRoutes)
 app.use('/api/me', meRoutes)
 app.use(errorHandler)
+
+// 启动时自动初始化内置数据（如抽奖次数类型），失败不阻塞服务启动，仅记日志
+ensureDrawCountType()
+  .then((t) => {
+    if (t) log.info('内置抽奖次数类型已就绪', { id: t.id, name: t.name })
+  })
+  .catch((err) => log.error('初始化内置抽奖次数类型失败', { err }))
 
 app.listen(config.port, () => {
   log.info(`Qianyu server listening on :${config.port}`, { port: config.port })

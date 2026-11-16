@@ -3,7 +3,7 @@ import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { listPrizes, drawRaffle } from '../api/raffles.js'
 import { listBenefitTypes, listFans, adjustFanCardsBatch, listReasons } from '../api/benefits.js'
 import { fetchFileObjectURL } from '../api/files.js'
-import { PRIZE_FALLBACK_EMOJI, QUICK_DRAW_COUNTS, MAX_BATCH_COUNT } from '@cabin/raffle.js'
+import { prizeIconText, QUICK_DRAW_COUNTS, MAX_BATCH_COUNT } from '@cabin/raffle.js'
 import mascotUrl from '@cabin/assets/qycj.png'
 import AppHeader from '../components/base/AppHeader.vue'
 import BaseButton from '../components/base/BaseButton.vue'
@@ -29,6 +29,35 @@ const drawing = ref(false) // 正在旋转闪烁中（可停止）
 const drawingRequest = ref(false) // 正在请求后端
 const drawError = ref('')
 const currentResults = ref([]) // 累积的抽奖结果列表
+// 结果展示模式：'list' 逐个展示 | 'group' 汇总展示（同奖品合并显示 xN）
+const resultViewMode = ref('list')
+// 汇总展示：按奖品 id 分组合并
+const groupedResults = computed(() => {
+  const map = new Map()
+  for (const r of currentResults.value) {
+    const key = r.prizeId || r.name
+    if (!map.has(key)) {
+      map.set(key, { ...r, count: 0, _idx: map.size })
+    }
+    map.get(key).count += 1
+  }
+  return [...map.values()]
+})
+// 结果区分页显示（防止一次渲染过多导致卡顿）
+const RESULTS_PAGE_SIZE = 100
+const resultsPage = ref(1)
+const displayedResults = computed(() => {
+  // 汇总模式下用 groupedResults，否则用 currentResults
+  const source = resultViewMode.value === 'group' ? groupedResults.value : currentResults.value
+  const start = (resultsPage.value - 1) * RESULTS_PAGE_SIZE
+  const slice = source.slice(start, start + RESULTS_PAGE_SIZE)
+  // 带上原始索引用于动画延迟
+  return slice.map((r, i) => ({ ...r, _idx: start + i }))
+})
+const resultsTotalPages = computed(() => {
+  const source = resultViewMode.value === 'group' ? groupedResults.value : currentResults.value
+  return Math.ceil(source.length / RESULTS_PAGE_SIZE)
+})
 
 // ---------- 中央闪烁礼物 ----------
 const flashing = ref(false)
@@ -38,9 +67,14 @@ let flashTimer = null
 function startFlash() {
   stopFlash()
   flashing.value = true
+  // 闪烁时随机显示可用奖池里的奖品
   flashTimer = setInterval(() => {
-    const random = availablePrizes.value[Math.floor(Math.random() * availablePrizes.value.length)]
-    flashPrize.value = random
+    const pool = availablePrizes.value
+    if (!pool.length) {
+      flashPrize.value = { name: '???', imageFileId: null }
+      return
+    }
+    flashPrize.value = pool[Math.floor(Math.random() * pool.length)]
   }, 80)
 }
 
@@ -132,12 +166,6 @@ async function loadPrizes() {
   }
 }
 
-function probabilityText(p) {
-  const total = availablePrizes.value.reduce((sum, pr) => sum + pr.weight, 0)
-  if (!total) return '0%'
-  return `${((p.weight / total) * 100).toFixed(1)}%`
-}
-
 // ---------- 抽奖 ----------
 async function startDraw() {
   if (drawing.value || drawingRequest.value) return
@@ -177,6 +205,7 @@ async function stopDraw() {
       return { ...prize, recordId: r.id, fanNickname: r.fanNickname }
     }).filter(Boolean)
     currentResults.value = [...currentResults.value, ...newResults]
+    resultsPage.value = 1 // 新结果回到第一页
     startConfetti()
     await loadPrizes()
   } catch (e) {
@@ -345,12 +374,6 @@ onMounted(async () => {
           <p class="hero__eyebrow">
             ✦ 千羽的小屋 · 直播抽奖 ✦
           </p>
-          <h1 class="hero__title">
-            小屋抽奖夜
-          </h1>
-          <p class="hero__sub">
-            当前奖池共 {{ availablePrizes.length }} 种礼品 · 仅管理员与开发管理员可用
-          </p>
           <p
             v-if="error"
             class="rf-error"
@@ -368,16 +391,22 @@ onMounted(async () => {
           >
             <div class="gift-box__inner">
               <img
-                v-if="flashPrize?.imageFileId && imageUrls.get(flashPrize.imageFileId)"
+                v-if="flashing && flashPrize?.imageFileId && imageUrls.get(flashPrize.imageFileId)"
                 :src="imageUrls.get(flashPrize.imageFileId)"
                 :alt="flashPrize.name"
+                class="gift-box__img"
+              >
+              <img
+                v-else-if="!flashing && currentResults[currentResults.length - 1]?.imageFileId && imageUrls.get(currentResults[currentResults.length - 1].imageFileId)"
+                :src="imageUrls.get(currentResults[currentResults.length - 1].imageFileId)"
+                :alt="currentResults[currentResults.length - 1].name"
                 class="gift-box__img"
               >
               <span
                 v-else
                 class="gift-box__emoji"
-              >{{ flashing ? PRIZE_FALLBACK_EMOJI : PRIZE_FALLBACK_EMOJI }}</span>
-              <span class="gift-box__name">{{ flashing ? flashPrize?.name || '???' : (currentResults[0]?.name || '???') }}</span>
+              >{{ flashing ? prizeIconText(flashPrize?.name) : prizeIconText(currentResults[currentResults.length - 1]?.name) }}</span>
+              <span class="gift-box__name">{{ flashing ? (flashPrize?.name || '???') : (currentResults[currentResults.length - 1]?.name || '???') }}</span>
             </div>
           </div>
         </div>
@@ -462,6 +491,23 @@ onMounted(async () => {
             <div class="result-panel__header">
               <h3>🎉 抽奖结果</h3>
               <span class="result-panel__count">共 {{ currentResults.length }} 个</span>
+              <!-- 切换逐个/汇总展示 -->
+              <div class="result-view-switch">
+                <button
+                  type="button"
+                  :class="{ 'is-active': resultViewMode === 'list' }"
+                  @click="resultViewMode = 'list'; resultsPage = 1"
+                >
+                  逐个
+                </button>
+                <button
+                  type="button"
+                  :class="{ 'is-active': resultViewMode === 'group' }"
+                  @click="resultViewMode = 'group'; resultsPage = 1"
+                >
+                  汇总
+                </button>
+              </div>
               <BaseButton
                 type="primary"
                 size="sm"
@@ -473,10 +519,10 @@ onMounted(async () => {
             <div class="result-scroll">
               <div class="result-grid">
                 <div
-                  v-for="(r, i) in currentResults"
-                  :key="r.recordId || i"
+                  v-for="r in displayedResults"
+                  :key="r.recordId || r.prizeId || r._idx"
                   class="result-cell"
-                  :style="{ animationDelay: `${i * 0.05}s` }"
+                  :style="{ animationDelay: `${(r._idx % RESULTS_PAGE_SIZE) * 0.03}s` }"
                 >
                   <img
                     v-if="r.imageFileId && imageUrls.get(r.imageFileId)"
@@ -486,10 +532,35 @@ onMounted(async () => {
                   >
                   <span
                     v-else
-                    class="result-cell__emoji"
-                  >{{ PRIZE_FALLBACK_EMOJI }}</span>
+                    class="result-cell__char"
+                  >{{ prizeIconText(r.name) }}</span>
                   <span class="result-cell__name">{{ r.name }}</span>
+                  <span
+                    v-if="resultViewMode === 'group' && r.count > 1"
+                    class="result-cell__count"
+                  >×{{ r.count }}</span>
                 </div>
+              </div>
+              <!-- 结果过多时分页显示 -->
+              <div
+                v-if="resultsTotalPages > 1"
+                class="result-pager"
+              >
+                <button
+                  type="button"
+                  :disabled="resultsPage <= 1"
+                  @click="resultsPage--"
+                >
+                  上一页
+                </button>
+                <span>{{ resultsPage }} / {{ resultsTotalPages }}</span>
+                <button
+                  type="button"
+                  :disabled="resultsPage >= resultsTotalPages"
+                  @click="resultsPage++"
+                >
+                  下一页
+                </button>
               </div>
             </div>
           </div>
@@ -594,7 +665,7 @@ onMounted(async () => {
                 :key="row.typeId"
                 class="grant-card"
               >
-                <div class="grant-card__icon">🎁</div>
+                <div class="grant-card__icon">{{ prizeIconText(row.typeName) }}</div>
                 <div class="grant-card__info">
                   <div class="grant-card__name">{{ row.typeName }}</div>
                   <div class="grant-card__count">×{{ row.count }}</div>
@@ -698,8 +769,7 @@ onMounted(async () => {
 
 .page__main {
   flex: 1;
-  width: 100%;
-  max-width: 600px;
+  width: 80%;
   margin: 0 auto;
   padding: 24px 20px 48px;
   box-sizing: border-box;
@@ -882,6 +952,43 @@ onMounted(async () => {
 .result-scroll::-webkit-scrollbar-thumb {
   background: var(--primary-soft);
   border-radius: 3px;
+}
+
+/* 结果分页 */
+.result-pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--primary-soft);
+}
+
+.result-pager button {
+  padding: 4px 12px;
+  border: 1px solid var(--primary-soft);
+  border-radius: 999px;
+  background: var(--surface);
+  font-size: 12px;
+  color: var(--muted);
+  cursor: pointer;
+  transition: all .15s;
+}
+
+.result-pager button:hover:not(:disabled) {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.result-pager button:disabled {
+  opacity: .5;
+  cursor: not-allowed;
+}
+
+.result-pager span {
+  font-size: 12px;
+  color: var(--muted);
 }
 
 /* 快捷抽数 */
@@ -1074,7 +1181,7 @@ onMounted(async () => {
 
 .result-panel__mascot {
   position: absolute;
-  top: -131px;
+  top: -100px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 3;
@@ -1083,7 +1190,7 @@ onMounted(async () => {
 }
 
 .result-panel__mascot img {
-  width: 180px;
+  width: 140px;
   height: auto;
   display: block;
 }
@@ -1092,51 +1199,68 @@ onMounted(async () => {
   background: var(--surface);
   border: 2px solid var(--primary-soft);
   border-radius: 20px;
-  padding: 20px;
-  padding-top: 28px;
+  padding: 24px;
+  padding-top: 32px;
   box-shadow: 0 8px 32px rgba(120, 90, 50, .12);
   position: relative;
   z-index: 2;
-  margin-top: 150px;
+  margin-top: 120px;
+  min-height: 60vh;
+  display: flex;
+  flex-direction: column;
 }
 
 .result-panel__header {
   display: flex;
   align-items: center;
   gap: 12px;
-  margin-bottom: 16px;
+  margin-bottom: 20px;
 }
 
 .result-panel__header h3 {
-  font-size: 20px;
+  font-size: 24px;
   color: var(--text);
   margin: 0;
   flex: 1;
 }
 
 .result-panel__count {
-  font-size: 13px;
+  font-size: 14px;
   color: var(--muted);
   background: var(--primary-soft);
-  padding: 4px 12px;
+  padding: 6px 16px;
   border-radius: 999px;
+}
+
+/* 结果网格占满剩余空间 */
+.result-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 4px;
 }
 
 .result-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
-  gap: 8px;
+  grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+  gap: 12px;
+}
+
+/* 汇总模式下卡片稍大，方便看数量 */
+.result-grid:has(.result-cell__count) {
+  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
 }
 
 .result-cell {
+  position: relative;
   aspect-ratio: 1;
   background: var(--primary-soft);
-  border-radius: 12px;
+  border-radius: 14px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 4px;
+  gap: 6px;
   animation: pop-in .4s cubic-bezier(.34, 1.56, .64, 1);
 }
 
@@ -1146,18 +1270,73 @@ onMounted(async () => {
 }
 
 .result-cell__img {
-  width: 32px;
-  height: 32px;
+  width: 48px;
+  height: 48px;
   object-fit: contain;
 }
 
-.result-cell__emoji {
-  font-size: 24px;
+/* 无图时用名称首字做图标，深底白字和格子背景区分 */
+.result-cell__char {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--primary);
+  color: #fff;
+  font-family: var(--font-display);
+  font-size: 20px;
+  line-height: 1;
 }
 
 .result-cell__name {
-  font-size: 10px;
+  font-size: 18px;
   color: var(--text);
+  font-weight: 600;
+}
+
+/* 汇总模式的 xN 标记 */
+.result-cell__count {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+  background: var(--primary);
+  padding: 2px 6px;
+  border-radius: 999px;
+  line-height: 1.2;
+}
+
+/* 切换逐个/汇总按钮 */
+.result-view-switch {
+  display: inline-flex;
+  border: 1px solid var(--primary-soft);
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--surface);
+}
+
+.result-view-switch button {
+  padding: 6px 14px;
+  border: none;
+  background: transparent;
+  font-size: 12px;
+  color: var(--muted);
+  cursor: pointer;
+  transition: all .15s;
+}
+
+.result-view-switch button + button {
+  border-left: 1px solid var(--primary-soft);
+}
+
+.result-view-switch button.is-active {
+  background: var(--primary-soft);
+  color: var(--primary);
   font-weight: 600;
 }
 

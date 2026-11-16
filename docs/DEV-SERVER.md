@@ -139,10 +139,13 @@ server/
 
 ## 11. 构建与运行
 
-- 开发：`pnpm dev`（建议 `node --watch src/server.js` 或 nodemon，按环境选）。
-- 迁移：部署用 **`pnpm db:deploy`**（= `prisma migrate deploy`，按迁移历史把库升到最新）；开发用 `pnpm prisma migrate dev --name <name>` 生成并应用迁移。
+- 开发：`pnpm dev`（`node --watch src/server.js`）。
+- **数据库迁移**：
+  - **开发环境**（改了 `schema.prisma` 后）：`pnpm db:migrate`（= `prisma migrate dev`），会提示输入迁移名称，生成迁移文件并应用。只在开发时用。
+  - **生产环境**（部署时）：`pnpm db:deploy`（= `prisma migrate deploy`），按迁移历史把库升到最新，不生成新迁移。部署文档用的就是这个。
+  - 查看数据库（调试用）：`pnpm db:studio`（= `prisma studio`），打开 Prisma Studio 可视化查看/编辑数据。
 - 生产：守护进程运行 `src/server.js`（pm2 / systemd），经 nginx 反代（见 `DEPLOYMENT.md`）。
-- 启动自检：配置缺失则退出并提示；`prisma generate` 应在部署脚本中执行。
+- 启动自检：配置缺失则退出并提示；`pnpm db:generate`（= `prisma generate`）在部署脚本中执行，重新生成 Prisma Client。
 
 ## 12. 排错（pnpm 与 Prisma 构建脚本）
 
@@ -163,8 +166,10 @@ onlyBuiltDependencies:
 cd server
 pnpm install            # 批准后即放行 Prisma 构建
 pnpm dev                # node --watch src/server.js
-pnpm prisma generate
-pnpm prisma migrate dev --name <name>
+pnpm db:generate        # 重新生成 Prisma Client（= prisma generate）
+pnpm db:migrate         # 开发环境迁移（= prisma migrate dev）
+pnpm db:deploy          # 生产环境迁移（= prisma migrate deploy）
+pnpm db:studio          # 可视化查看数据库（= prisma studio）
 ```
 
 **应急绕过（白名单未生效时）**：直接用 `node` 调 Prisma CLI，跳过 pnpm 包装器：

@@ -70,13 +70,25 @@ onMounted(load)
               :class="{ 'is-zero': card.amount === 0 }"
             >
               <div class="mb-card__head">
-                <span class="mb-card__name">{{ card.typeName }}</span>
+                <span class="mb-card__name">
+                  {{ card.typeName }}
+                  <span
+                    v-if="card.isDrawCount"
+                    class="mb-card__badge"
+                  >抽奖次数</span>
+                </span>
                 <span class="mb-card__amount">
-                  <b>{{ card.amount }}</b> 张
+                  <b>{{ card.amount }}</b> {{ card.isDrawCount ? '次' : '张' }}
                 </span>
               </div>
               <p
-                v-if="card.description"
+                v-if="card.isDrawCount"
+                class="mb-card__desc"
+              >
+                可在「我的抽奖」里使用
+              </p>
+              <p
+                v-else-if="card.description"
                 class="mb-card__desc"
               >
                 {{ card.description }}
@@ -154,6 +166,18 @@ onMounted(load)
   font-weight: 600;
   font-size: 15px;
   color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.mb-card__badge {
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(201, 116, 59, .12);
+  color: var(--primary);
+  font-weight: 500;
+  flex-shrink: 0;
 }
 .mb-card__amount b {
   font-family: var(--font-display);

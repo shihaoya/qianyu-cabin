@@ -33,10 +33,12 @@ const error = ref('')
 
 // ---------- 福利类型 ----------
 const types = ref([])
+// 是否已有抽奖次数类型（全局唯一，已有则不再显示勾选）
+const hasDrawCountType = computed(() => types.value.some((t) => t.isDrawCount))
 const showTypes = ref(false)
-const typeDraft = ref({ name: '', description: '' })
+const typeDraft = ref({ name: '', description: '', isDrawCount: false })
 const editingTypeId = ref(null)
-const editingTypeDraft = ref({ name: '', description: '' })
+const editingTypeDraft = ref({ name: '', description: '', isDrawCount: false })
 const typeSaving = ref(false)
 const typeError = ref('')
 
@@ -203,7 +205,7 @@ async function loadFanLogs(fanId) {
 // ---------- 福利类型弹窗 ----------
 async function openTypes() {
   typeError.value = ''
-  typeDraft.value = { name: '', description: '' }
+  typeDraft.value = { name: '', description: '', isDrawCount: false }
   editingTypeId.value = null
   showTypes.value = true
   try {
@@ -223,8 +225,8 @@ async function submitType() {
   typeSaving.value = true
   typeError.value = ''
   try {
-    await createBenefitType({ name, description: typeDraft.value.description })
-    typeDraft.value = { name: '', description: '' }
+    await createBenefitType({ name, description: typeDraft.value.description, isDrawCount: typeDraft.value.isDrawCount })
+    typeDraft.value = { name: '', description: '', isDrawCount: false }
     await loadTypes()
   } catch (e) {
     typeError.value = e.message || '新增失败'
@@ -235,7 +237,7 @@ async function submitType() {
 
 function startEditType(t) {
   editingTypeId.value = t.id
-  editingTypeDraft.value = { name: t.name, description: t.description || '' }
+  editingTypeDraft.value = { name: t.name, description: t.description || '', isDrawCount: t.isDrawCount || false }
   typeError.value = ''
 }
 
@@ -252,6 +254,7 @@ async function saveEditType() {
     await updateBenefitType(editingTypeId.value, {
       name,
       description: editingTypeDraft.value.description,
+      isDrawCount: editingTypeDraft.value.isDrawCount,
     })
     editingTypeId.value = null
     await Promise.all([loadTypes(), loadFans()])
@@ -493,6 +496,7 @@ function openBatch(fan) {
     typeId: t.id,
     typeName: t.name,
     amount: amountOf(fan, t.id),
+    isDrawCount: t.isDrawCount || false,
     delta: '',
   }))
   batchTarget.value = { fanId: fan.id, nickname: fan.nickname }
@@ -834,8 +838,14 @@ function fmtTime(value) {
               >
                 <span class="ab-benefit__num">{{ amountOf(currentFan, t.id) }}</span>
                 <span class="ab-benefit__meta">
-                  <b>{{ t.name }}</b>
-                  <small>{{ t.description || '暂无说明' }}</small>
+                  <b>
+                    {{ t.name }}
+                    <span
+                      v-if="t.isDrawCount"
+                      class="ab-typerow__badge"
+                    >抽奖次数</span>
+                  </b>
+                  <small>{{ t.isDrawCount ? '粉丝自助抽奖时自动扣减' : (t.description || '暂无说明') }}</small>
                 </span>
                 <span class="ab-benefit__ops">
                   <button
@@ -1038,9 +1048,15 @@ function fmtTime(value) {
             </template>
             <template v-else>
               <div class="ab-typerow__main">
-                <span class="ab-typerow__name">{{ t.name }}</span>
+                <span class="ab-typerow__name">
+                  {{ t.name }}
+                  <span
+                    v-if="t.isDrawCount"
+                    class="ab-typerow__badge"
+                  >内置</span>
+                </span>
                 <span class="ab-typerow__meta">
-                  {{ t.description || '暂无说明' }} · {{ t.holderCount }} 位粉丝持有
+                  {{ t.isDrawCount ? '粉丝自助抽奖时自动扣减' : (t.description || '暂无说明') }} · {{ t.holderCount }} 位粉丝持有
                 </span>
               </div>
               <div class="ab-typerow__ops">
@@ -1051,6 +1067,7 @@ function fmtTime(value) {
                   编辑
                 </BaseButton>
                 <BaseButton
+                  v-if="!t.isDrawCount"
                   type="text"
                   :disabled="t.holderCount > 0"
                   @click="removeType(t)"
@@ -1089,7 +1106,7 @@ function fmtTime(value) {
           </BaseButton>
         </div>
         <p class="ab-hint">
-          已有粉丝持有该类型时不可删除，需先把他们的卡减到 0。
+          已有粉丝持有该类型时不可删除，需先把他们的卡减到 0。「抽奖次数」是系统内置类型，自动创建，不能删除。
         </p>
       </BaseModal>
     </transition>
@@ -1379,8 +1396,14 @@ function fmtTime(value) {
               :key="row.typeId"
               class="ab-batch__row"
             >
-              <span class="ab-batch__name">{{ row.typeName }}</span>
-              <span class="ab-batch__amount">现有 {{ row.amount }} 张</span>
+              <span class="ab-batch__name">
+                {{ row.typeName }}
+                <span
+                  v-if="row.isDrawCount"
+                  class="ab-typerow__badge"
+                >抽奖次数</span>
+              </span>
+              <span class="ab-batch__amount">{{ row.isDrawCount ? '剩余' : '现有' }} {{ row.amount }} {{ row.isDrawCount ? '次' : '张' }}</span>
               <input
                 v-model="row.delta"
                 class="ab-input ab-input--narrow"
@@ -1978,6 +2001,18 @@ function fmtTime(value) {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.ab-typerow__badge {
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(201, 116, 59, .12);
+  color: var(--primary);
+  font-weight: 500;
+  flex-shrink: 0;
 }
 .ab-typerow__meta {
   color: var(--muted);
@@ -1989,6 +2024,14 @@ function fmtTime(value) {
   gap: 8px;
   flex: 1;
   min-width: 0;
+}
+.ab-typecheck {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--muted);
+  cursor: pointer;
 }
 .ab-typerow__ops {
   display: flex;
