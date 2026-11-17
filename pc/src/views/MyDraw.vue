@@ -395,8 +395,10 @@ function fmtTime(value) {
 <style scoped>
 .page__main {
   width: 80%;
+  max-width: 100%;
   margin: 0 auto;
   padding: 24px 20px 48px;
+  overflow-x: hidden;
 }
 
 .md-header {
@@ -547,7 +549,7 @@ function fmtTime(value) {
 
 .md-draw-stage__glow {
   position: absolute;
-  inset: -20%;
+  inset: 0;
   background: radial-gradient(ellipse at 50% 50%, rgba(224, 162, 59, .12), transparent 60%);
   pointer-events: none;
 }

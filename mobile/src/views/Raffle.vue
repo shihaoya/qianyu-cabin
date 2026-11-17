@@ -791,7 +791,7 @@ onMounted(async () => {
 
 .draw-stage__glow {
   position: absolute;
-  inset: -20%;
+  inset: 0;
   background: radial-gradient(ellipse at 50% 50%, rgba(224, 162, 59, .12), transparent 60%);
   pointer-events: none;
 }
